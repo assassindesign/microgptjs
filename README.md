@@ -2,7 +2,7 @@
 
 一个极简的、无依赖的纯 JavaScript (Node.js) GPT 实现。
 
-这是对 [Andrej Karpathy](https://github.com/karpathy) “原子级” Python（https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95） 实现的直接移植。仅使用 Node.js 标准库 + ES5语法，演示 Transformer 的核心算法——自动求导、注意力机制和优化器。
+这是对 [Andrej Karpathy](https://github.com/karpathy) “原子级” Python（https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95 ） 实现的直接移植。仅使用 Node.js 标准库 + ES5语法，演示 Transformer 的核心算法——自动求导、注意力机制和优化器。
 
 ## 🌟 特性
 
