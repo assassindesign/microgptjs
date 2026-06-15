@@ -189,6 +189,185 @@ var state = {
     mlp_fc2: matrix(nEmb, 4 * nEmb)
 };
 
+var stateKeys = [
+    'wte',
+    'wpe',
+    'lm_head',
+    'attn_wq',
+    'attn_wk',
+    'attn_wv',
+    'attn_wo',
+    'mlp_fc1',
+    'mlp_fc2'
+];
+
+var checkpointPath = path.join(__dirname, 'gpt_checkpoint.json');
+
+function collectParams() {
+    var out = [];
+    for (var s = 0; s < stateKeys.length; s++) {
+        var key = stateKeys[s];
+        var mat = state[key];
+        for (var i = 0; i < mat.length; i++) {
+            for (var j = 0; j < mat[i].length; j++) {
+                out.push(mat[i][j]);
+            }
+        }
+    }
+    return out;
+}
+
+function initOptimizerState() {
+    params = collectParams();
+    m = [];
+    v = [];
+    for (var i = 0; i < params.length; i++) {
+        m.push(0);
+        v.push(0);
+    }
+}
+
+function matrixToData(mat) {
+    var out = [];
+    for (var i = 0; i < mat.length; i++) {
+        var row = [];
+        for (var j = 0; j < mat[i].length; j++) {
+            row.push(mat[i][j].data);
+        }
+        out.push(row);
+    }
+    return out;
+}
+
+function checkNumber(x, name) {
+    if (typeof x !== 'number' || !isFinite(x)) {
+        throw new Error('checkpoint number invalid: ' + name);
+    }
+}
+
+function checkEqual(a, b, name) {
+    if (a !== b) {
+        throw new Error('checkpoint config mismatch: ' + name);
+    }
+}
+
+function checkChars(savedChars) {
+    if (!Array.isArray(savedChars)) {
+        throw new Error('checkpoint chars invalid');
+    }
+    checkEqual(savedChars.length, uchars.length, 'uchars.length');
+    for (var i = 0; i < uchars.length; i++) {
+        checkEqual(savedChars[i], uchars[i], 'uchars[' + i + ']');
+    }
+}
+
+function loadMatrixData(key, savedMatrix) {
+    var mat = state[key];
+    if (!Array.isArray(savedMatrix)) {
+        throw new Error('checkpoint matrix missing: ' + key);
+    }
+    checkEqual(savedMatrix.length, mat.length, key + '.rows');
+
+    for (var i = 0; i < mat.length; i++) {
+        if (!Array.isArray(savedMatrix[i])) {
+            throw new Error('checkpoint matrix row invalid: ' + key);
+        }
+        checkEqual(savedMatrix[i].length, mat[i].length, key + '.cols');
+        for (var j = 0; j < mat[i].length; j++) {
+            checkNumber(savedMatrix[i][j], key + '[' + i + '][' + j + ']');
+            mat[i][j].data = savedMatrix[i][j];
+            mat[i][j].grad = 0;
+            mat[i][j].children = [];
+            mat[i][j].grads = [];
+        }
+    }
+}
+
+function copyOptimizerArray(savedArray, name) {
+    if (!Array.isArray(savedArray)) {
+        throw new Error('checkpoint optimizer array missing: ' + name);
+    }
+    checkEqual(savedArray.length, params.length, name + '.length');
+
+    var out = [];
+    for (var i = 0; i < savedArray.length; i++) {
+        checkNumber(savedArray[i], name + '[' + i + ']');
+        out.push(savedArray[i]);
+    }
+    return out;
+}
+
+//保存模型
+function saveCheckpoint(nextStep) {
+    var saved = {};
+
+    saved._format = 'microgpt-checkpoint-v1';
+    saved._step = nextStep;
+    saved._seed = _seed;
+    saved._vocabSize = vocabSize;
+    saved._uchars = uchars;
+    saved._BOS = BOS;
+    saved._nLayer = nLayer;
+    saved._nEmb = nEmb;
+    saved._blockSize = blockSize;
+    saved._nHead = nHead;
+    saved._headDim = headDim;
+
+    saved._m = [];
+    saved._v = [];
+    for (var i = 0; i < m.length; i++) {
+        saved._m.push(m[i]);
+        saved._v.push(v[i]);
+    }
+
+    for (var s = 0; s < stateKeys.length; s++) {
+        var key = stateKeys[s];
+        saved[key] = matrixToData(state[key]);
+    }
+
+    fs.writeFileSync(checkpointPath, JSON.stringify(saved));
+    console.log('checkpoint saved:', checkpointPath, 'step', nextStep);
+}
+
+//加载模型
+function loadCheckpoint() {
+    if (!fs.existsSync(checkpointPath)) {
+        console.log('no checkpoint found, training from step 0');
+        return 0;
+    }
+
+    console.log('loading checkpoint:', checkpointPath);
+    var data = JSON.parse(fs.readFileSync(checkpointPath, 'utf8'));
+
+    checkEqual(data._format, 'microgpt-checkpoint-v1', '_format');
+    checkEqual(data._vocabSize, vocabSize, '_vocabSize');
+    checkEqual(data._BOS, BOS, '_BOS');
+    checkEqual(data._nLayer, nLayer, '_nLayer');
+    checkEqual(data._nEmb, nEmb, '_nEmb');
+    checkEqual(data._blockSize, blockSize, '_blockSize');
+    checkEqual(data._nHead, nHead, '_nHead');
+    checkEqual(data._headDim, headDim, '_headDim');
+    checkChars(data._uchars);
+
+    for (var s = 0; s < stateKeys.length; s++) {
+        loadMatrixData(stateKeys[s], data[stateKeys[s]]);
+    }
+
+    params = collectParams();
+    m = copyOptimizerArray(data._m, '_m');
+    v = copyOptimizerArray(data._v, '_v');
+
+    checkNumber(data._step, '_step');
+    if (Math.floor(data._step) !== data._step || data._step < 0) {
+        throw new Error('checkpoint step invalid');
+    }
+    checkNumber(data._seed, '_seed');
+    _seed = data._seed;
+
+    console.log('checkpoint loaded, resume from step', data._step);
+    return data._step;
+}
+
 
 //基础算子（linear / softmax / rmsnorm）
 function linear(x, w) {
@@ -324,27 +503,23 @@ var beta2 = 0.99;
 var eps = 1e-8;
 
 var params = [];
-for (var k in state) {
-    var mat = state[k];
-    for (var i = 0; i < mat.length; i++) {
-        for (var j = 0; j < mat[i].length; j++) {
-            params.push(mat[i][j]);
-        }
-    }
-}
-
 var m = [];
 var v = [];
-for (var i = 0; i < params.length; i++) {
-    m.push(0);
-    v.push(0);
+initOptimizerState();
+
+
+//训练循环 （总步数1000，训练到一半中断了，比如保存到 step 240，再运行：会从 step 240 继续到 step 1000）
+var steps = 1000;
+var checkpointEvery = 20;
+var startStep = loadCheckpoint();
+
+if (startStep >= steps) {
+    console.log('checkpoint step', startStep, 'has reached target steps', steps);
+} else {
+    console.log('training from step', startStep, 'to', steps);
 }
 
-
-//训练循环
-var steps = 1000;
-
-for (var step = 0; step < steps; step++) {
+for (var step = startStep; step < steps; step++) {
     var doc = docs[step % docs.length];
     var tokens = [BOS];
     for (var i = 0; i < doc.length; i++){
@@ -377,6 +552,10 @@ for (var step = 0; step < steps; step++) {
     if (step % 20 === 0) {
         console.log('step', step, 'loss', loss.data.toFixed(4));
     }
+
+    if ((step + 1) % checkpointEvery === 0 || step + 1 === steps) {
+        saveCheckpoint(step + 1);
+    }
 }
 
 
@@ -392,9 +571,10 @@ for (var s = 0; s < 10; s++) {
     for (var i = 0; i < blockSize; i++) {
         var logits = gpt(token, i, keys, values);
         var temperature = 0.5;
-        var scaledLogits = logits.map(function(l) { 
-            return mul(l, new Value(1/temperature)); 
-        });
+        var scaledLogits = [];
+        for (var k = 0; k < logits.length; k++) {
+            scaledLogits.push(mul(logits[k], new Value(1 / temperature)));
+        }
         var probs = softmax(scaledLogits);
 
         //推理更快等价于temperature = 1
