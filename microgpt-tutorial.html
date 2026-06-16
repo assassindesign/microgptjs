@@ -1,0 +1,2247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MicroGPT.js 完全教程 —— 从零手写一个 GPT</title>
+<style>
+  /* ===== 全局 ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222636;
+    --border: #2e3248;
+    --accent: #7c6ff7;
+    --accent2: #56cfb2;
+    --accent3: #f7a14f;
+    --accent4: #f76f7c;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --code-bg: #12141f;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.75;
+    font-size: 16px;
+  }
+
+  /* ===== 侧边导航 ===== */
+  #sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 100;
+    padding: 24px 0 40px;
+  }
+  #sidebar .logo {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  #sidebar .logo h2 {
+    font-size: 15px; color: var(--accent); font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  #sidebar .logo p { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  #sidebar nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 20px;
+    color: var(--text2); text-decoration: none;
+    font-size: 13.5px; border-left: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  #sidebar nav a:hover, #sidebar nav a.active {
+    color: var(--accent); background: rgba(124,111,247,0.08);
+    border-left-color: var(--accent);
+  }
+  #sidebar nav a .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--surface2); font-size: 11px; font-weight: 700;
+    color: var(--text3); flex-shrink: 0;
+  }
+  #sidebar nav a:hover .num, #sidebar nav a.active .num {
+    background: var(--accent); color: #fff;
+  }
+
+  /* ===== 主内容 ===== */
+  #main {
+    margin-left: 260px;
+    max-width: 860px;
+    padding: 48px 48px 120px;
+  }
+
+  /* ===== 顶部 Banner ===== */
+  .hero {
+    background: linear-gradient(135deg, #1a1d27 0%, #1e1b3a 50%, #1a2430 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 48px 40px;
+    margin-bottom: 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; top: -60px; right: -60px;
+    width: 240px; height: 240px;
+    background: radial-gradient(circle, rgba(124,111,247,0.15) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero h1 {
+    font-size: 32px; font-weight: 800;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .hero p { color: var(--text2); font-size: 15px; max-width: 600px; }
+  .hero .tags { margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tag {
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+    border: 1px solid;
+  }
+  .tag-purple { color: var(--accent); border-color: rgba(124,111,247,0.4); background: rgba(124,111,247,0.08); }
+  .tag-green  { color: var(--accent2); border-color: rgba(86,207,178,0.4); background: rgba(86,207,178,0.08); }
+  .tag-orange { color: var(--accent3); border-color: rgba(247,161,79,0.4); background: rgba(247,161,79,0.08); }
+
+  /* ===== 章节标题 ===== */
+  .chapter {
+    margin-bottom: 72px;
+    scroll-margin-top: 24px;
+  }
+  .chapter-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chapter-num {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), #5b52d4);
+    font-size: 18px; font-weight: 800; color: #fff; flex-shrink: 0;
+  }
+  .chapter-header h2 { font-size: 22px; font-weight: 700; color: var(--text); }
+  .chapter-header p { font-size: 13px; color: var(--text3); margin-top: 2px; }
+
+  h3 {
+    font-size: 17px; font-weight: 700;
+    color: var(--text); margin: 28px 0 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h3::before {
+    content: ''; display: inline-block;
+    width: 4px; height: 18px;
+    background: var(--accent2); border-radius: 2px;
+  }
+
+  p { margin-bottom: 14px; color: var(--text2); }
+
+  /* ===== 代码块 ===== */
+  .code-wrap {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 16px 0 24px;
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--text3);
+  }
+  .code-header .lang {
+    color: var(--accent2); font-weight: 700; font-size: 11px; letter-spacing: 1px;
+  }
+  pre {
+    padding: 20px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    color: #c9d1d9;
+  }
+  /* 语法高亮 */
+  .kw { color: #ff79c6; }
+  .fn { color: #50fa7b; }
+  .str { color: #f1fa8c; }
+  .num { color: #bd93f9; }
+  .cmt { color: #6272a4; font-style: italic; }
+  .var { color: #8be9fd; }
+  .op  { color: #ff79c6; }
+
+  /* 行内代码 */
+  p code, li code {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 6px;
+    font-size: 13px; color: var(--accent2);
+  }
+
+  /* ===== 注意/提示框 ===== */
+  .box {
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-left: 4px solid;
+    display: flex; gap: 14px;
+  }
+  .box-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .box-content { flex: 1; }
+  .box-content p { margin-bottom: 0; }
+  .box-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+
+  .tip  { background: rgba(86,207,178,0.07); border-color: var(--accent2); }
+  .tip .box-title { color: var(--accent2); }
+  .warn { background: rgba(247,161,79,0.07); border-color: var(--accent3); }
+  .warn .box-title { color: var(--accent3); }
+  .info { background: rgba(124,111,247,0.07); border-color: var(--accent); }
+  .info .box-title { color: var(--accent); }
+  .danger { background: rgba(247,111,124,0.07); border-color: var(--accent4); }
+  .danger .box-title { color: var(--accent4); }
+
+  /* ===== 卡片网格 ===== */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .card .emoji { font-size: 32px; margin-bottom: 10px; }
+  .card h4 { font-size: 14px; color: var(--text); margin-bottom: 6px; }
+  .card p { font-size: 12.5px; color: var(--text3); margin-bottom: 0; }
+
+  /* ===== 步骤流 ===== */
+  .steps { margin: 20px 0; }
+  .step {
+    display: flex; gap: 16px;
+    margin-bottom: 20px;
+  }
+  .step-dot {
+    display: flex; flex-direction: column; align-items: center;
+    flex-shrink: 0;
+  }
+  .step-dot .dot {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .step-dot .line {
+    width: 2px; flex: 1; background: var(--border); margin-top: 4px;
+  }
+  .step-body { padding-top: 4px; }
+  .step-body h4 { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .step-body p { font-size: 13.5px; }
+
+  /* ===== 表格 ===== */
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13.5px;
+  }
+  th {
+    background: var(--surface2); color: var(--accent);
+    padding: 10px 14px; text-align: left;
+    border-bottom: 2px solid var(--border); font-weight: 700;
+  }
+  td {
+    padding: 9px 14px; color: var(--text2);
+    border-bottom: 1px solid var(--border);
+  }
+  tr:hover td { background: rgba(124,111,247,0.04); }
+
+  /* ===== 可视化图示 ===== */
+  .visual {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 20px;
+    margin: 20px 0;
+    text-align: center;
+  }
+  .visual .caption {
+    font-size: 12px; color: var(--text3);
+    margin-top: 14px;
+  }
+
+  /* ===== 数学公式展示 ===== */
+  .formula {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 16px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: #f1fa8c;
+    text-align: center;
+  }
+
+  /* ===== 分页线 ===== */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* ===== 列表 ===== */
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { color: var(--text2); margin-bottom: 6px; font-size: 14.5px; }
+
+  /* ===== 强调 ===== */
+  strong { color: var(--text); }
+  .hl-purple { color: var(--accent); font-weight: 700; }
+  .hl-green  { color: var(--accent2); font-weight: 700; }
+  .hl-orange { color: var(--accent3); font-weight: 700; }
+  .hl-red    { color: var(--accent4); font-weight: 700; }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 900px) {
+    #sidebar { display: none; }
+    #main { margin-left: 0; padding: 24px 20px 80px; }
+  }
+
+  /* ===== 滚动条 ===== */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ===== 进度指示 ===== */
+  #progress {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transform-origin: left;
+    transform: scaleX(0);
+    transition: transform 0.1s;
+    z-index: 200;
+  }
+
+  /* ===== 节点图 ===== */
+  .node-graph {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; flex-wrap: wrap;
+    padding: 20px;
+  }
+  .node {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 4px;
+  }
+  .node .circle {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+    border: 2px solid;
+  }
+  .node .label { font-size: 11px; color: var(--text3); }
+  .node-arrow {
+    font-size: 22px; color: var(--text3);
+    margin: 0 4px; padding-bottom: 20px;
+  }
+  .n-blue  { color: #60a5fa; border-color: #60a5fa; background: rgba(96,165,250,0.1); }
+  .n-green { color: #34d399; border-color: #34d399; background: rgba(52,211,153,0.1); }
+  .n-purple{ color: #a78bfa; border-color: #a78bfa; background: rgba(167,139,250,0.1); }
+  .n-orange{ color: #fb923c; border-color: #fb923c; background: rgba(251,146,60,0.1); }
+  .n-pink  { color: #f472b6; border-color: #f472b6; background: rgba(244,114,182,0.1); }
+
+  /* ===== 小练习 ===== */
+  .exercise {
+    background: linear-gradient(135deg, rgba(124,111,247,0.08), rgba(86,207,178,0.05));
+    border: 1px solid rgba(124,111,247,0.3);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 24px 0;
+  }
+  .exercise h4 {
+    color: var(--accent); font-size: 14px; font-weight: 700;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .exercise p, .exercise li { font-size: 13.5px; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- 侧边导航 -->
+<aside id="sidebar">
+  <div class="logo">
+    <h2>🧠 MicroGPT.js 教程</h2>
+    <p>从零手写一个 GPT</p>
+  </div>
+  <nav>
+    <a href="#ch0" class="active"><span class="num">0</span> 课前准备：我们要造什么</a>
+    <a href="#ch1"><span class="num">1</span> 随机数：可控的骰子</a>
+    <a href="#ch2"><span class="num">2</span> 读取数据 &amp; 分词</a>
+    <a href="#ch3"><span class="num">3</span> Value：会记账的数字</a>
+    <a href="#ch4"><span class="num">4</span> 计算图：数字的家谱树</a>
+    <a href="#ch5"><span class="num">5</span> 反向传播：顺藤摸瓜找错误</a>
+    <a href="#ch6"><span class="num">6</span> 模型参数初始化</a>
+    <a href="#ch7"><span class="num">7</span> 基础算子：线性层、Softmax、归一化</a>
+    <a href="#ch8"><span class="num">8</span> 注意力机制：谁跟谁有关系</a>
+    <a href="#ch9"><span class="num">9</span> MLP 前馈层</a>
+    <a href="#ch10"><span class="num">10</span> GPT 完整前向传播</a>
+    <a href="#ch11"><span class="num">11</span> Adam 优化器：聪明的学习方式</a>
+    <a href="#ch12"><span class="num">12</span> 训练循环：反复练习</a>
+    <a href="#ch13"><span class="num">13</span> 保存 &amp; 加载模型</a>
+    <a href="#ch14"><span class="num">14</span> 推理生成文字</a>
+    <a href="#ch15"><span class="num">15</span> 完整代码手写指南</a>
+  </nav>
+</aside>
+
+<!-- 主内容 -->
+<main id="main">
+
+  <!-- Hero Banner -->
+  <div class="hero">
+    <h1>MicroGPT.js 完全教程</h1>
+    <p>600 行 JavaScript，从零实现一个完整的 GPT 语言模型。本教程逐行拆解每一步原理，让小学的加减乘除就足够理解核心思想，最终你能完全手写出这份程序。</p>
+    <div class="tags">
+      <span class="tag tag-purple">📐 小学数学即可读懂</span>
+      <span class="tag tag-green">⚡ 纯 JavaScript / 无依赖</span>
+      <span class="tag tag-orange">🤖 完整 GPT 实现</span>
+    </div>
+  </div>
+
+  <!-- ============================
+       第 0 章：课前准备
+  ============================= -->
+  <section class="chapter" id="ch0">
+    <div class="chapter-header">
+      <div class="chapter-num">0</div>
+      <div>
+        <h2>课前准备：我们要造什么？</h2>
+        <p>在开始写代码之前，先用一个生活类比弄清楚目标</p>
+      </div>
+    </div>
+
+    <p>GPT 是一种能"预测下一个字"的程序。你输入"今天天气真"，它能预测出"好"。训练时，它不断猜测并被纠正，直到猜得越来越准。</p>
+
+    <div class="box info">
+      <span class="box-icon">🍎</span>
+      <div class="box-content">
+        <div class="box-title">生活类比：猜词游戏</div>
+        <p>想象你在玩填词游戏。老师说"一加一等于___"，你猜"二"。老师告诉你答对了，你得一分；猜错了，你就要修正自己的想法。GPT 做的事和这一模一样，只不过它每次训练可以学几万道题。</p>
+      </div>
+    </div>
+
+    <h3>MicroGPT.js 的整体结构</h3>
+    <p>整个程序分为 <strong>6 个大模块</strong>，就像造一辆玩具车的 6 个步骤：</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-dot"><div class="dot">1</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>📚 读数据</h4>
+          <p>从文件里读取训练用的单词或句子，把每个字变成数字编号（就像给每个字发一张身份证）。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">2</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>🔢 Value（自动求导引擎）</h4>
+          <p>发明一种特殊的数字，它不仅记住自己的值，还记住"它是怎么算出来的"——这是反向传播的核心。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">3</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>🏗️ 模型参数</h4>
+          <p>初始化模型的"大脑细胞"——一大堆随机数字，训练会让它们变成有意义的权重。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">4</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>🤖 GPT 前向传播</h4>
+          <p>给定一个输入词，模型经过注意力机制和神经网络，输出"下一个词"的概率分布。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">5</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>⬅️ 反向传播 + 优化</h4>
+          <p>计算模型猜错了多少，然后把这个"错误"传回去，调整每个参数让它下次猜得更准。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">6</div></div>
+        <div class="step-body">
+          <h4>✍️ 推理生成</h4>
+          <p>训练完成后，给模型一个开头，它能一个字一个字地生成新内容。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">💡</span>
+      <div class="box-content">
+        <div class="box-title">本教程的学习方法</div>
+        <p>每一章都先讲"这步做什么、为什么"，再讲"代码长什么样"，最后给出"小练习"帮你检验理解。建议按顺序阅读，因为后面的章节会用到前面的概念。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 1 章：随机数
+  ============================= -->
+  <section class="chapter" id="ch1">
+    <div class="chapter-header">
+      <div class="chapter-num">1</div>
+      <div>
+        <h2>随机数：可控的骰子</h2>
+        <p>线性同余法 —— 用一颗"种子"生成可复现的随机数序列</p>
+      </div>
+    </div>
+
+    <p>神经网络在初始化时需要随机数。但普通的随机数每次运行都不同，会导致实验无法复现。代码里自己实现了一个"伪随机数生成器"，这样只要给同一个种子，每次都能产生完全相同的数列。</p>
+
+    <div class="box info">
+      <span class="box-icon">🎲</span>
+      <div class="box-content">
+        <div class="box-title">类比：魔法骰子</div>
+        <p>想象你有一颗魔法骰子，规则是：<strong>下一次的结果 = 上一次的结果 × 16807，然后除以 2147483647 取余数</strong>。只要初始结果（种子）一样，每次摇都会得到同样的序列。这就叫"伪随机数"——看起来随机，其实完全可预测。</p>
+      </div>
+    </div>
+
+    <h3>代码解析</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>microgpt.js 第 8–21 行</span></div>
+      <pre><code><span class="kw">var</span> <span class="var">_seed</span> = <span class="num">42</span>;           <span class="cmt">// 种子：就像魔法骰子的起始值</span>
+
+<span class="kw">function</span> <span class="fn">rand</span>() {
+    <span class="cmt">// 线性同余公式：新种子 = 旧种子 × 16807 mod 2147483647</span>
+    <span class="var">_seed</span> = (<span class="var">_seed</span> * <span class="num">16807</span>) % <span class="num">2147483647</span>;
+    <span class="cmt">// 把结果压缩到 [0, 1) 之间</span>
+    <span class="kw">return</span> (<span class="var">_seed</span> - <span class="num">1</span>) / <span class="num">2147483646</span>;
+}
+
+<span class="kw">function</span> <span class="fn">randn</span>() {
+    <span class="cmt">// Box-Muller 变换：把两个 [0,1) 随机数变成"正态分布"的随机数</span>
+    <span class="cmt">// 正态分布 = 大部分值靠近 0，极端值很少</span>
+    <span class="kw">var</span> <span class="var">u</span> = <span class="fn">rand</span>();
+    <span class="kw">var</span> <span class="var">v</span> = <span class="fn">rand</span>();
+    <span class="kw">return</span> Math.<span class="fn">sqrt</span>(-<span class="num">2</span> * Math.<span class="fn">log</span>(<span class="var">u</span>)) * Math.<span class="fn">cos</span>(<span class="num">2</span> * Math.PI * <span class="var">v</span>);
+}</code></pre>
+    </div>
+
+    <h3>小学能理解的计算过程</h3>
+    <p>我们用超级简化版来感受一下（真实代码里数字更大）：</p>
+
+    <div class="visual">
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;font-size:14px;">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;text-align:center;">
+          <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">初始种子</div>
+          <div style="color:var(--accent);font-weight:700;font-size:18px;">42</div>
+        </div>
+        <div style="color:var(--text3);font-size:20px;">→</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;text-align:center;">
+          <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">42 × 16807 mod 2147483647</div>
+          <div style="color:var(--accent2);font-weight:700;font-size:18px;">705894</div>
+        </div>
+        <div style="color:var(--text3);font-size:20px;">→</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;text-align:center;">
+          <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">705893 / 2147483646</div>
+          <div style="color:var(--accent3);font-weight:700;font-size:18px;">≈ 0.000329</div>
+        </div>
+      </div>
+      <div class="caption">rand() 的计算过程：种子 → 更新种子 → 压缩到 [0, 1)</div>
+    </div>
+
+    <table>
+      <tr><th>函数</th><th>作用</th><th>输出范围</th><th>用在哪里</th></tr>
+      <tr><td><code>rand()</code></td><td>均匀随机数</td><td>[0, 1)</td><td>数据打乱、推理采样</td></tr>
+      <tr><td><code>randn()</code></td><td>正态随机数</td><td>大部分在(-2, 2)</td><td>参数初始化</td></tr>
+    </table>
+
+    <div class="exercise">
+      <h4>✏️ 小练习</h4>
+      <p>在浏览器控制台或 Node.js 里复制以下代码，观察种子相同时，每次运行输出是否完全一致：</p>
+      <div class="code-wrap" style="margin-top:10px;">
+        <pre><code><span class="kw">var</span> _seed = <span class="num">42</span>;
+<span class="kw">function</span> <span class="fn">rand</span>() {
+    _seed = (_seed * <span class="num">16807</span>) % <span class="num">2147483647</span>;
+    <span class="kw">return</span> (_seed - <span class="num">1</span>) / <span class="num">2147483646</span>;
+}
+console.<span class="fn">log</span>(<span class="fn">rand</span>(), <span class="fn">rand</span>(), <span class="fn">rand</span>());
+<span class="cmt">// 输出永远是：0.000329... 0.000657... 0.000986...</span></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 2 章：读取数据 & 分词
+  ============================= -->
+  <section class="chapter" id="ch2">
+    <div class="chapter-header">
+      <div class="chapter-num">2</div>
+      <div>
+        <h2>读取数据 &amp; 分词器</h2>
+        <p>把文字变成数字 —— 给每个字发一张"身份证"</p>
+      </div>
+    </div>
+
+    <p>计算机只懂数字，不懂文字。所以第一步要把训练数据（英文名字或中文诗词）里的每一个字符，都映射成一个数字编号。这个过程叫<strong>分词（Tokenization）</strong>。</p>
+
+    <h3>数据加载流程</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-dot"><div class="dot">1</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>检查并下载数据</h4>
+          <p>如果本地没有 <code>input.txt</code>，就自动用 <code>curl</code> 从 GitHub 下载英文名字数据集（约 3.2 万个名字）。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">2</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>按行切分成文档</h4>
+          <p>把文件按换行符 <code>\n</code> 切开，每一行（例如 <code>"emma"</code>）就是一条训练数据。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">3</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>随机打乱顺序</h4>
+          <p>用 Fisher-Yates 洗牌算法打乱所有文档，让模型训练时不会只记住顺序。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">4</div></div>
+        <div class="step-body">
+          <h4>建立词表</h4>
+          <p>统计所有出现过的字符，排好序，每个字符得到一个唯一的数字 ID。还有一个特殊的 <code>BOS</code>（句子开始）符号。</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>代码解析：建立词表</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>分词器核心代码</span></div>
+      <pre><code><span class="cmt">// 第一步：收集所有出现过的字符</span>
+<span class="kw">var</span> <span class="var">chars</span> = {};
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">docs</span>.length; <span class="var">i</span>++) {
+    <span class="kw">var</span> <span class="var">d</span> = <span class="var">docs</span>[<span class="var">i</span>];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">k</span> = <span class="num">0</span>; <span class="var">k</span> &lt; <span class="var">d</span>.length; <span class="var">k</span>++) {
+        <span class="var">chars</span>[<span class="var">d</span>[<span class="var">k</span>]] = <span class="kw">true</span>;  <span class="cmt">// 记录每个字符（去重）</span>
+    }
+}
+
+<span class="cmt">// 第二步：排序，保证每次运行词表顺序一致</span>
+<span class="kw">var</span> <span class="var">uchars</span> = [];
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">c</span> <span class="kw">in</span> <span class="var">chars</span>) { <span class="var">uchars</span>.<span class="fn">push</span>(<span class="var">c</span>); }
+<span class="var">uchars</span>.<span class="fn">sort</span>();
+
+<span class="cmt">// 第三步：BOS = "句子开始"符号，编号 = 字符数（排在最后）</span>
+<span class="kw">var</span> <span class="var">BOS</span> = <span class="var">uchars</span>.length;       <span class="cmt">// 比如英文有26个字母，BOS = 26</span>
+<span class="kw">var</span> <span class="var">vocabSize</span> = <span class="var">uchars</span>.length + <span class="num">1</span>;  <span class="cmt">// 词表大小 = 字符数 + 1（含BOS）</span>
+
+<span class="cmt">// 字符 ↔ 数字 互转</span>
+<span class="kw">function</span> <span class="fn">charToId</span>(<span class="var">ch</span>) {         <span class="cmt">// 'a' → 0, 'b' → 1, ...</span>
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">uchars</span>.length; <span class="var">i</span>++) {
+        <span class="kw">if</span> (<span class="var">uchars</span>[<span class="var">i</span>] === <span class="var">ch</span>) <span class="kw">return</span> <span class="var">i</span>;
+    }
+    <span class="kw">return</span> -<span class="num">1</span>;
+}
+<span class="kw">function</span> <span class="fn">idToChar</span>(<span class="var">id</span>) { <span class="kw">return</span> <span class="var">uchars</span>[<span class="var">id</span>]; }  <span class="cmt">// 0 → 'a'</span></code></pre>
+    </div>
+
+    <div class="visual">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">以英文名字 <strong style="color:var(--accent)">"emma"</strong> 为例，词表建立过程：</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:center;">
+          <div style="color:var(--text3);font-size:11px;">字符</div>
+          <div style="color:var(--accent);font-size:20px;font-weight:700;">'a'</div>
+          <div style="color:var(--accent2);font-size:13px;font-weight:700;">ID: 0</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:center;">
+          <div style="color:var(--text3);font-size:11px;">字符</div>
+          <div style="color:var(--accent);font-size:20px;font-weight:700;">'b'</div>
+          <div style="color:var(--accent2);font-size:13px;font-weight:700;">ID: 1</div>
+        </div>
+        <div style="font-size:24px;color:var(--text3);display:flex;align-items:center;">···</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:center;">
+          <div style="color:var(--text3);font-size:11px;">字符</div>
+          <div style="color:var(--accent);font-size:20px;font-weight:700;">'z'</div>
+          <div style="color:var(--accent2);font-size:13px;font-weight:700;">ID: 25</div>
+        </div>
+        <div style="background:rgba(124,111,247,0.15);border:1px solid rgba(124,111,247,0.4);border-radius:8px;padding:8px 14px;text-align:center;">
+          <div style="color:var(--text3);font-size:11px;">特殊</div>
+          <div style="color:var(--accent);font-size:20px;font-weight:700;">BOS</div>
+          <div style="color:var(--accent2);font-size:13px;font-weight:700;">ID: 26</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;font-size:13px;color:var(--text2);">
+        "emma" → <span style="color:var(--accent3);font-weight:700;">[BOS, 4, 12, 12, 0, BOS]</span>（e=4, m=12, a=0）
+      </div>
+      <div class="caption">BOS 放在句子开头和结尾，告诉模型"句子在这里开始/结束"</div>
+    </div>
+
+    <div class="box warn">
+      <span class="box-icon">⚠️</span>
+      <div class="box-content">
+        <div class="box-title">为什么需要 BOS？</div>
+        <p>模型在生成第一个字时，没有"上文"可以参考，就用 BOS 作为起点信号。在推理时，你给模型一个 BOS，它就能开始生成内容。</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <h4>✏️ 小练习</h4>
+      <p>假设训练数据只有 <code>"cat"</code> 和 <code>"dog"</code> 两个词，请你手动建立词表，并写出 <code>"cat"</code> 对应的 token 序列（含 BOS）。</p>
+      <p style="margin-top:8px;color:var(--text3);font-size:12px;">提示：字符排序后是 a, c, d, g, o, t，BOS = 6。答案：[6, 1, 0, 5, 6]</p>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 3 章：Value 类
+  ============================= -->
+  <section class="chapter" id="ch3">
+    <div class="chapter-header">
+      <div class="chapter-num">3</div>
+      <div>
+        <h2>Value：会记账的数字</h2>
+        <p>自动求导引擎的核心 —— 每个数字都记得自己的"出身"</p>
+      </div>
+    </div>
+
+    <p>这是整个程序最重要的概念。普通的数字只知道自己的值，而 <code>Value</code> 对象还额外记住了：<strong>① 我是怎么算出来的（children）</strong> 和 <strong>② 如果我变大一点，对最终答案有多大影响（grad）</strong>。</p>
+
+    <div class="box info">
+      <span class="box-icon">📒</span>
+      <div class="box-content">
+        <div class="box-title">类比：记账本</div>
+        <p>普通数字就像钱包里的钱，只知道"有多少"。<br>Value 就像一本记账本，不仅知道"现在有多少钱"，还记录了"这笔钱从哪来的、怎么算的"。这样以后如果发现亏损（误差），可以顺着记录追回去找出问题。</p>
+      </div>
+    </div>
+
+    <h3>Value 的数据结构</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>Value 类定义</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">Value</span>(<span class="var">data</span>, <span class="var">children</span>, <span class="var">grads</span>) {
+    <span class="kw">this</span>.<span class="var">data</span>     = <span class="var">data</span>;          <span class="cmt">// 当前的数值，比如 3.14</span>
+    <span class="kw">this</span>.<span class="var">grad</span>     = <span class="num">0</span>;              <span class="cmt">// 梯度，初始为 0（后面反向传播会填进来）</span>
+    <span class="kw">this</span>.<span class="var">children</span> = <span class="var">children</span> || [];  <span class="cmt">// 我是由哪些 Value 算出来的</span>
+    <span class="kw">this</span>.<span class="var">grads</span>    = <span class="var">grads</span>    || [];  <span class="cmt">// 每个 child 对我的"贡献比例"（局部导数）</span>
+}</code></pre>
+    </div>
+
+    <div class="visual">
+      <div style="display:flex;gap:20px;justify-content:center;align-items:center;flex-wrap:wrap;font-size:13px;">
+        <div style="background:var(--surface2);border:2px solid var(--accent);border-radius:10px;padding:16px 20px;text-align:center;min-width:120px;">
+          <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">data（值）</div>
+          <div style="color:var(--accent);font-size:22px;font-weight:700;">5</div>
+        </div>
+        <div style="background:var(--surface2);border:2px solid var(--accent2);border-radius:10px;padding:16px 20px;text-align:center;min-width:120px;">
+          <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">grad（梯度）</div>
+          <div style="color:var(--accent2);font-size:22px;font-weight:700;">0.0</div>
+          <div style="color:var(--text3);font-size:11px;margin-top:4px;">反向传播后变化</div>
+        </div>
+        <div style="background:var(--surface2);border:2px solid var(--accent3);border-radius:10px;padding:16px 20px;text-align:center;min-width:120px;">
+          <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">children（父节点）</div>
+          <div style="color:var(--accent3);font-size:14px;font-weight:700;">[a, b]</div>
+          <div style="color:var(--text3);font-size:11px;margin-top:4px;">比如 a + b = 5</div>
+        </div>
+        <div style="background:var(--surface2);border:2px solid var(--accent4);border-radius:10px;padding:16px 20px;text-align:center;min-width:120px;">
+          <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">grads（局部导数）</div>
+          <div style="color:var(--accent4);font-size:14px;font-weight:700;">[1, 1]</div>
+          <div style="color:var(--text3);font-size:11px;margin-top:4px;">加法中各贡献 = 1</div>
+        </div>
+      </div>
+      <div class="caption">一个 Value 对象的四个字段：值、梯度、来自哪里、各来源的贡献系数</div>
+    </div>
+
+    <h3>六个基本运算</h3>
+    <p>代码里定义了六个运算，每个运算除了计算数值，还同时记录了"如果结果变化1，每个输入需要变化多少"（这叫<strong>局部导数</strong>，只用到了小学除法）：</p>
+
+    <table>
+      <tr><th>运算</th><th>数学公式</th><th>计算值</th><th>局部导数（grads）</th><th>小学理解</th></tr>
+      <tr>
+        <td><code>add(a,b)</code></td>
+        <td>a + b</td>
+        <td>a.data + b.data</td>
+        <td>[1, 1]</td>
+        <td>a 增加 1，结果也增加 1</td>
+      </tr>
+      <tr>
+        <td><code>mul(a,b)</code></td>
+        <td>a × b</td>
+        <td>a.data × b.data</td>
+        <td>[b.data, a.data]</td>
+        <td>a 增加 1，结果增加 b 倍</td>
+      </tr>
+      <tr>
+        <td><code>neg(a)</code></td>
+        <td>-a</td>
+        <td>-a.data</td>
+        <td>[-1]</td>
+        <td>a 增加 1，结果减少 1</td>
+      </tr>
+      <tr>
+        <td><code>pow(a,p)</code></td>
+        <td>aᵖ</td>
+        <td>a.data^p</td>
+        <td>[p × a.data^(p-1)]</td>
+        <td>幂函数求导（初中知识）</td>
+      </tr>
+      <tr>
+        <td><code>expv(a)</code></td>
+        <td>eᵃ</td>
+        <td>Math.exp(a.data)</td>
+        <td>[eᵃ]（自身）</td>
+        <td>指数函数导数等于自身</td>
+      </tr>
+      <tr>
+        <td><code>relu(a)</code></td>
+        <td>max(0, a)</td>
+        <td>a>0 ? a : 0</td>
+        <td>[a>0 ? 1 : 0]</td>
+        <td>正数通过，负数变0</td>
+      </tr>
+    </table>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>六个基本运算的实现</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">add</span>(<span class="var">a</span>, <span class="var">b</span>) {
+    <span class="cmt">// 结果 = a + b，两个 child 的贡献都是 1（加法对每个输入的导数是1）</span>
+    <span class="kw">return new</span> <span class="fn">Value</span>(<span class="var">a</span>.data + <span class="var">b</span>.data, [<span class="var">a</span>, <span class="var">b</span>], [<span class="num">1</span>, <span class="num">1</span>]);
+}
+
+<span class="kw">function</span> <span class="fn">mul</span>(<span class="var">a</span>, <span class="var">b</span>) {
+    <span class="cmt">// 结果 = a × b，a 的贡献是 b，b 的贡献是 a（乘法交叉）</span>
+    <span class="kw">return new</span> <span class="fn">Value</span>(<span class="var">a</span>.data * <span class="var">b</span>.data, [<span class="var">a</span>, <span class="var">b</span>], [<span class="var">b</span>.data, <span class="var">a</span>.data]);
+}
+
+<span class="kw">function</span> <span class="fn">relu</span>(<span class="var">a</span>) {
+    <span class="cmt">// 大于0就通过，否则输出0。导数：大于0是1，否则是0</span>
+    <span class="kw">return new</span> <span class="fn">Value</span>(
+        <span class="var">a</span>.data > <span class="num">0</span> ? <span class="var">a</span>.data : <span class="num">0</span>,
+        [<span class="var">a</span>],
+        [<span class="var">a</span>.data > <span class="num">0</span> ? <span class="num">1</span> : <span class="num">0</span>]
+    );
+}</code></pre>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">💡</span>
+      <div class="box-content">
+        <div class="box-title">为什么 mul 的导数是交叉的？</div>
+        <p>想象 a=3, b=4，结果=12。<br>如果 <strong>a 增加 1</strong>（变成4），结果变成 4×4=16，增加了 4（= b 的值）。<br>如果 <strong>b 增加 1</strong>（变成5），结果变成 3×5=15，增加了 3（= a 的值）。<br>所以 a 对结果的影响系数 = b，b 对结果的影响系数 = a。这就是 <code>[b.data, a.data]</code>。</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <h4>✏️ 小练习</h4>
+      <p>用代码计算 <code>a = Value(3)</code>，<code>b = Value(4)</code>，<code>c = mul(a, b)</code>。<br>
+      请问 <code>c.data</code> 是多少？<code>c.grads</code> 是什么？<code>c.children</code> 里有什么？</p>
+      <p style="margin-top:8px;color:var(--text3);font-size:12px;">答案：c.data = 12，c.grads = [4, 3]（b, a的值），c.children = [a, b]</p>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 4 章：计算图
+  ============================= -->
+  <section class="chapter" id="ch4">
+    <div class="chapter-header">
+      <div class="chapter-num">4</div>
+      <div>
+        <h2>计算图：数字的家谱树</h2>
+        <p>每次运算都生成一棵树，记录"这个结果是怎么来的"</p>
+      </div>
+    </div>
+
+    <p>当你把多个 Value 运算串起来，比如 <code>c = add(mul(a, b), a)</code>，就会自动形成一棵<strong>计算图（Computational Graph）</strong>。这棵树就像家谱——每个节点知道自己的父节点是谁。</p>
+
+    <div class="box info">
+      <span class="box-icon">🌳</span>
+      <div class="box-content">
+        <div class="box-title">类比：家谱树</div>
+        <p>计算图就像一棵家谱树。树根是最终结果（损失值），叶子是最原始的输入（模型参数）。每个中间节点都知道"我的父母是谁、他们对我有多大贡献"。反向传播就是从根节点出发，顺着家谱找到每一片叶子，告诉它"因为你的原因，最终答案偏差了多少"。</p>
+      </div>
+    </div>
+
+    <h3>一个具体例子</h3>
+    <p>假设 <code>a = Value(2)</code>，<code>b = Value(3)</code>，计算 <code>c = a × b + a</code>：</p>
+
+    <div class="visual">
+      <div style="font-size:13px;">
+        <div style="display:flex;align-items:flex-end;justify-content:center;gap:0;">
+          <!-- 根节点 -->
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div style="background:rgba(247,161,79,0.15);border:2px solid #f7a14f;border-radius:10px;padding:10px 16px;text-align:center;min-width:100px;">
+              <div style="color:#f7a14f;font-weight:700;font-size:16px;">c = 8</div>
+              <div style="color:var(--text3);font-size:11px;">add(mul_ab, a)</div>
+              <div style="color:var(--accent2);font-size:11px;">grads: [1, 1]</div>
+            </div>
+            <div style="display:flex;gap:40px;position:relative;">
+              <div style="position:absolute;top:-8px;left:50%;width:1px;height:8px;background:var(--border);"></div>
+              <!-- 左分支线 -->
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                <div style="background:rgba(124,111,247,0.15);border:2px solid #7c6ff7;border-radius:10px;padding:10px 16px;text-align:center;min-width:90px;">
+                  <div style="color:#7c6ff7;font-weight:700;font-size:16px;">ab = 6</div>
+                  <div style="color:var(--text3);font-size:11px;">mul(a, b)</div>
+                  <div style="color:var(--accent2);font-size:11px;">grads: [3, 2]</div>
+                </div>
+                <div style="display:flex;gap:20px;">
+                  <div style="background:rgba(86,207,178,0.15);border:2px solid #56cfb2;border-radius:10px;padding:8px 14px;text-align:center;">
+                    <div style="color:#56cfb2;font-weight:700;font-size:16px;">a = 2</div>
+                    <div style="color:var(--text3);font-size:11px;">参数叶子</div>
+                  </div>
+                  <div style="background:rgba(86,207,178,0.15);border:2px solid #56cfb2;border-radius:10px;padding:8px 14px;text-align:center;">
+                    <div style="color:#56cfb2;font-weight:700;font-size:16px;">b = 3</div>
+                    <div style="color:var(--text3);font-size:11px;">参数叶子</div>
+                  </div>
+                </div>
+              </div>
+              <!-- 右分支 -->
+              <div style="background:rgba(86,207,178,0.15);border:2px solid #56cfb2;border-radius:10px;padding:8px 14px;text-align:center;margin-top:56px;">
+                <div style="color:#56cfb2;font-weight:700;font-size:16px;">a = 2</div>
+                <div style="color:var(--text3);font-size:11px;">同一个 a</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">计算图：c = a×b + a = 2×3 + 2 = 8。注意 a 被用了两次，梯度会累加。</div>
+    </div>
+
+    <h3>拓扑排序：确定反向传播顺序</h3>
+    <p>反向传播时，必须先处理"输出"节点，再处理"输入"节点。为了找到正确的顺序，代码用了<strong>拓扑排序（DFS深度优先搜索）</strong>：</p>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>拓扑排序 —— 建立反向传播顺序</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">backward</span>(<span class="var">v</span>) {
+    <span class="kw">var</span> <span class="var">topo</span>    = [];  <span class="cmt">// 存排好序的节点（从叶子到根）</span>
+    <span class="kw">var</span> <span class="var">visited</span> = [];  <span class="cmt">// 记录已经访问过的节点，避免重复</span>
+
+    <span class="kw">function</span> <span class="fn">visit</span>(<span class="var">x</span>) {
+        <span class="kw">if</span> (<span class="var">visited</span>.<span class="fn">indexOf</span>(<span class="var">x</span>) !== -<span class="num">1</span>) <span class="kw">return</span>;  <span class="cmt">// 已访问过，跳过</span>
+        <span class="var">visited</span>.<span class="fn">push</span>(<span class="var">x</span>);
+        <span class="cmt">// 先递归访问所有"子节点"（输入来源）</span>
+        <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">x</span>.children.length; <span class="var">i</span>++) {
+            <span class="fn">visit</span>(<span class="var">x</span>.children[<span class="var">i</span>]);
+        }
+        <span class="var">topo</span>.<span class="fn">push</span>(<span class="var">x</span>);  <span class="cmt">// 等所有子节点处理完，再把自己加入</span>
+    }
+
+    <span class="fn">visit</span>(<span class="var">v</span>);           <span class="cmt">// 从根节点（最终损失）出发</span>
+    <span class="var">v</span>.grad = <span class="num">1</span>;         <span class="cmt">// 根节点对自身的梯度 = 1（损失对损失的导数是1）</span>
+
+    <span class="cmt">// 从根到叶倒序传播梯度</span>
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="var">topo</span>.length - <span class="num">1</span>; <span class="var">i</span> >= <span class="num">0</span>; <span class="var">i</span>--) {
+        <span class="kw">var</span> <span class="var">node</span> = <span class="var">topo</span>[<span class="var">i</span>];
+        <span class="kw">for</span> (<span class="kw">var</span> <span class="var">j</span> = <span class="num">0</span>; <span class="var">j</span> &lt; <span class="var">node</span>.children.length; <span class="var">j</span>++) {
+            <span class="cmt">// 链式法则：child的梯度 += 局部导数 × 当前节点梯度</span>
+            <span class="var">node</span>.children[<span class="var">j</span>].grad += <span class="var">node</span>.grads[<span class="var">j</span>] * <span class="var">node</span>.grad;
+        }
+    }
+}</code></pre>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">💡</span>
+      <div class="box-content">
+        <div class="box-title">为什么用 += 而不是 =？</div>
+        <p>因为同一个节点（比如参数 a）可能在计算图里出现多次（上面例子里 a 被用了两次），每次出现都会贡献一部分梯度，所以要<strong>累加</strong>而不是覆盖。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 5 章：反向传播
+  ============================= -->
+  <section class="chapter" id="ch5">
+    <div class="chapter-header">
+      <div class="chapter-num">5</div>
+      <div>
+        <h2>反向传播：顺藤摸瓜找错误</h2>
+        <p>链式法则 —— 把最终误差逆向分摊到每一个参数上</p>
+      </div>
+    </div>
+
+    <p>反向传播是神经网络学习的核心机制。它回答一个问题：<strong>"如果最终的损失（错误）变化了1，每个参数需要负多少责任？"</strong></p>
+
+    <div class="box info">
+      <span class="box-icon">🕵️</span>
+      <div class="box-content">
+        <div class="box-title">类比：顺藤摸瓜找锅</div>
+        <p>工厂生产了一批不合格产品（损失大）。老板要追责：先找到最后一道工序的责任，再往上追每一个上游工序的责任，一直追到最开始的原材料（模型参数）。每一步责任的传递，就是"局部导数 × 上游梯度"。</p>
+      </div>
+    </div>
+
+    <h3>链式法则（用小学乘法理解）</h3>
+    <p>假设有三个环节：<code>参数 w → 中间值 z → 损失 L</code></p>
+
+    <div class="visual">
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;font-size:13px;">
+        <div style="text-align:center;">
+          <div style="background:rgba(86,207,178,0.15);border:2px solid #56cfb2;border-radius:10px;padding:12px 20px;">
+            <div style="color:#56cfb2;font-weight:700;font-size:18px;">w = 2.0</div>
+            <div style="color:var(--text3);font-size:11px;">参数（叶节点）</div>
+          </div>
+          <div style="color:var(--accent2);font-size:12px;margin-top:6px;">grad = ?</div>
+        </div>
+        <div style="font-size:20px;color:var(--text3);">→</div>
+        <div style="text-align:center;">
+          <div style="background:rgba(124,111,247,0.15);border:2px solid #7c6ff7;border-radius:10px;padding:12px 20px;">
+            <div style="color:#7c6ff7;font-weight:700;font-size:18px;">z = w × 3</div>
+            <div style="color:var(--text3);font-size:11px;">dz/dw = 3</div>
+          </div>
+          <div style="color:var(--accent2);font-size:12px;margin-top:6px;">grad = 0.6</div>
+        </div>
+        <div style="font-size:20px;color:var(--text3);">→</div>
+        <div style="text-align:center;">
+          <div style="background:rgba(247,161,79,0.15);border:2px solid #f7a14f;border-radius:10px;padding:12px 20px;">
+            <div style="color:#f7a14f;font-weight:700;font-size:18px;">L = z²</div>
+            <div style="color:var(--text3);font-size:11px;">dL/dz = 2z = 12</div>
+          </div>
+          <div style="color:var(--accent2);font-size:12px;margin-top:6px;">grad = 1（根节点）</div>
+        </div>
+      </div>
+      <div class="caption">链式法则：dL/dw = (dL/dz) × (dz/dw) = 1 × 12 × 3 = 36<br>意思是：w 增加 1，L 会增加约 36</div>
+    </div>
+
+    <h3>完整的反向传播过程（用上面 c = a×b + a 的例子）</h3>
+    <p>已知：a=2, b=3, c=8，现在运行 <code>backward(c)</code>：</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-dot"><div class="dot">1</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>初始化根节点</h4>
+          <p>c.grad = 1（损失对自身的导数 = 1）</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">2</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>处理 add 节点（c = ab + a）</h4>
+          <p>add 的 grads = [1, 1]<br>
+          → ab.grad += 1 × c.grad = 1 × 1 = <strong style="color:var(--accent2);">1</strong><br>
+          → a.grad += 1 × c.grad = 1 × 1 = <strong style="color:var(--accent2);">1</strong>（第一次累加）</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">3</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>处理 mul 节点（ab = a × b）</h4>
+          <p>mul 的 grads = [b.data, a.data] = [3, 2]<br>
+          → a.grad += 3 × ab.grad = 3 × 1 = <strong style="color:var(--accent2);">3</strong>（第二次累加，a.grad 现在 = 1+3 = 4）<br>
+          → b.grad += 2 × ab.grad = 2 × 1 = <strong style="color:var(--accent2);">2</strong></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">4</div></div>
+        <div class="step-body">
+          <h4>最终结果</h4>
+          <p>a.grad = 4（如果 a 增加1，c 增加约 4）<br>
+          b.grad = 2（如果 b 增加1，c 增加约 2）<br>
+          优化时：把 a 减小一点点，c（损失）就会减小约 4 倍。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">✅</span>
+      <div class="box-content">
+        <div class="box-title">验证：手算检查</div>
+        <p>c = a×b + a = a(b+1)。对 a 求导 = b+1 = 3+1 = 4 ✓<br>对 b 求导 = a = 2 ✓<br>反向传播的结果和手算完全吻合！</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <h4>✏️ 小练习</h4>
+      <p>假设 <code>a = Value(5)</code>，<code>b = Value(2)</code>，<code>c = mul(a, b)</code>，<code>d = add(c, b)</code>。运行 <code>backward(d)</code> 后：<br>
+      a.grad = ？ b.grad = ？</p>
+      <p style="color:var(--text3);font-size:12px;margin-top:6px;">答案：d = a×b + b = 5×2+2=12。d对a求导=b=2，d对b求导=a+1=6。所以 a.grad=2, b.grad=6</p>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 6 章：参数初始化
+  ============================= -->
+  <section class="chapter" id="ch6">
+    <div class="chapter-header">
+      <div class="chapter-num">6</div>
+      <div>
+        <h2>模型参数初始化</h2>
+        <p>给神经网络的每个"大脑细胞"分配一个随机的起始值</p>
+      </div>
+    </div>
+
+    <p>GPT 模型的参数都是二维矩阵（表格）。程序用 <code>matrix(rows, cols)</code> 函数创建这些矩阵，每个格子里放一个随机初始化的 <code>Value</code> 对象。</p>
+
+    <h3>超参数（模型的"尺寸规格"）</h3>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>模型超参数</span></div>
+      <pre><code><span class="kw">var</span> <span class="var">nLayer</span>    = <span class="num">1</span>;   <span class="cmt">// Transformer 层数（堆叠几层）</span>
+<span class="kw">var</span> <span class="var">nEmb</span>      = <span class="num">16</span>;  <span class="cmt">// 嵌入维度：每个词用16个数字来表示</span>
+<span class="kw">var</span> <span class="var">blockSize</span> = <span class="num">16</span>;  <span class="cmt">// 上下文窗口大小：最多看16个前面的词</span>
+<span class="kw">var</span> <span class="var">nHead</span>     = <span class="num">4</span>;   <span class="cmt">// 注意力头数：4个头同时关注不同维度</span>
+<span class="kw">var</span> <span class="var">headDim</span>   = <span class="num">16</span> / <span class="num">4</span>;  <span class="cmt">// = 4，每个头负责4个维度</span></code></pre>
+    </div>
+
+    <table>
+      <tr><th>超参数</th><th>值</th><th>含义（小学类比）</th></tr>
+      <tr><td>nEmb = 16</td><td>16</td><td>每个字用16格子的表格来描述自己（越大描述越丰富）</td></tr>
+      <tr><td>blockSize = 16</td><td>16</td><td>看文章时最多往前看16个字（短期记忆长度）</td></tr>
+      <tr><td>nHead = 4</td><td>4</td><td>用4种不同视角来分析字与字的关系</td></tr>
+      <tr><td>headDim = 4</td><td>4</td><td>每种视角只看16格中的4格</td></tr>
+    </table>
+
+    <h3>矩阵创建与参数表</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>参数初始化</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">matrix</span>(<span class="var">rows</span>, <span class="var">cols</span>) {
+    <span class="kw">var</span> <span class="var">m</span> = [];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">rows</span>; <span class="var">i</span>++) {
+        <span class="kw">var</span> <span class="var">r</span> = [];
+        <span class="kw">for</span> (<span class="kw">var</span> <span class="var">j</span> = <span class="num">0</span>; <span class="var">j</span> &lt; <span class="var">cols</span>; <span class="var">j</span>++) {
+            r.<span class="fn">push</span>(<span class="kw">new</span> <span class="fn">Value</span>(<span class="fn">randn</span>() * <span class="num">0.08</span>));
+            <span class="cmt">// randn() * 0.08 = 小随机数（接近0但不完全是0）</span>
+            <span class="cmt">// 初始化太大会"爆炸"，太小会"消失"，0.08是经验值</span>
+        }
+        <span class="var">m</span>.<span class="fn">push</span>(<span class="var">r</span>);
+    }
+    <span class="kw">return</span> <span class="var">m</span>;
+}
+
+<span class="kw">var</span> <span class="var">state</span> = {
+    <span class="var">wte</span>:     <span class="fn">matrix</span>(<span class="var">vocabSize</span>, <span class="var">nEmb</span>),  <span class="cmt">// 词嵌入表：每个词ID → 16维向量</span>
+    <span class="var">wpe</span>:     <span class="fn">matrix</span>(<span class="var">blockSize</span>, <span class="var">nEmb</span>), <span class="cmt">// 位置嵌入表：每个位置 → 16维向量</span>
+    <span class="var">lm_head</span>: <span class="fn">matrix</span>(<span class="var">vocabSize</span>, <span class="var">nEmb</span>), <span class="cmt">// 输出层：16维 → 词表大小（预测下一个词）</span>
+    <span class="var">attn_wq</span>: <span class="fn">matrix</span>(<span class="var">nEmb</span>, <span class="var">nEmb</span>),      <span class="cmt">// 注意力：Query 变换矩阵</span>
+    <span class="var">attn_wk</span>: <span class="fn">matrix</span>(<span class="var">nEmb</span>, <span class="var">nEmb</span>),      <span class="cmt">// 注意力：Key 变换矩阵</span>
+    <span class="var">attn_wv</span>: <span class="fn">matrix</span>(<span class="var">nEmb</span>, <span class="var">nEmb</span>),      <span class="cmt">// 注意力：Value 变换矩阵</span>
+    <span class="var">attn_wo</span>: <span class="fn">matrix</span>(<span class="var">nEmb</span>, <span class="var">nEmb</span>),      <span class="cmt">// 注意力：输出投影矩阵</span>
+    <span class="var">mlp_fc1</span>: <span class="fn">matrix</span>(<span class="num">4</span>*<span class="var">nEmb</span>, <span class="var">nEmb</span>),    <span class="cmt">// MLP 扩展层：16→64</span>
+    <span class="var">mlp_fc2</span>: <span class="fn">matrix</span>(<span class="var">nEmb</span>, <span class="num">4</span>*<span class="var">nEmb</span>)     <span class="cmt">// MLP 压缩层：64→16</span>
+};</code></pre>
+    </div>
+
+    <div class="visual">
+      <div style="font-size:13px;color:var(--text2);">
+        <div style="margin-bottom:12px;font-weight:700;color:var(--text);">wte（词嵌入表）示意图 —— 词表大小 × 16</div>
+        <div style="display:grid;grid-template-columns:80px repeat(4, 40px) 40px;gap:4px;font-size:11px;text-align:center;max-width:380px;margin:0 auto;">
+          <div style="color:var(--text3);">词 ID</div>
+          <div style="color:var(--accent2);">维0</div>
+          <div style="color:var(--accent2);">维1</div>
+          <div style="color:var(--accent2);">维2</div>
+          <div style="color:var(--accent2);">维3</div>
+          <div style="color:var(--text3);">···</div>
+
+          <div style="color:var(--accent);">0 ('a')</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">0.12</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">-0.05</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">0.08</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">0.03</div>
+          <div style="color:var(--text3);">···</div>
+
+          <div style="color:var(--accent);">1 ('b')</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">-0.02</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">0.15</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">-0.07</div>
+          <div style="background:var(--surface2);border-radius:4px;padding:4px;color:var(--accent3);">0.11</div>
+          <div style="color:var(--text3);">···</div>
+        </div>
+      </div>
+      <div class="caption">每一行代表一个词的"身份证"——16个数字组成的向量。训练后，意思相近的词，它们的向量会变得相似。</div>
+    </div>
+
+    <div class="box warn">
+      <span class="box-icon">⚠️</span>
+      <div class="box-content">
+        <div class="box-title">为什么初始值要乘以 0.08？</div>
+        <p>如果初始值太大（比如随机到10），经过多层运算会"爆炸"（越来越大，模型无法收敛）；如果全是0，梯度也是0，无法学习。<code>randn() * 0.08</code> 让初始值在 [-0.24, 0.24] 范围内，保证训练稳定开始。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 7 章：基础算子
+  ============================= -->
+  <section class="chapter" id="ch7">
+    <div class="chapter-header">
+      <div class="chapter-num">7</div>
+      <div>
+        <h2>基础算子：线性层、Softmax、归一化</h2>
+        <p>GPT 模型的三块"积木"</p>
+      </div>
+    </div>
+
+    <h3>① linear（线性变换）—— 矩阵乘法</h3>
+    <p>这是神经网络最基本的操作：把一个向量（数字列表）通过一个权重矩阵"变换"成另一个向量。本质上就是很多个"加权求和"。</p>
+
+    <div class="box info">
+      <span class="box-icon">⚖️</span>
+      <div class="box-content">
+        <div class="box-title">类比：投票计分</div>
+        <p>有5个评委（输入向量），每个评委的打分要乘以不同的权重，再全部加起来，得到最终分数（输出的一个维度）。有多少个"裁判席位"（输出维度），就做多少次这样的加权求和。</p>
+      </div>
+    </div>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>linear 函数</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">linear</span>(<span class="var">x</span>, <span class="var">w</span>) {
+    <span class="cmt">// x: 输入向量 [x0, x1, ..., xN]
+    // w: 权重矩阵 [outputDim 行, inputDim 列]
+    // 输出: 每一行的权重与输入的点积</span>
+    <span class="kw">var</span> <span class="var">out</span> = [];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">w</span>.length; <span class="var">i</span>++) {   <span class="cmt">// 遍历输出的每个维度</span>
+        <span class="kw">var</span> <span class="var">sum</span> = <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">0</span>);
+        <span class="kw">for</span> (<span class="kw">var</span> <span class="var">j</span> = <span class="num">0</span>; <span class="var">j</span> &lt; <span class="var">x</span>.length; <span class="var">j</span>++) {  <span class="cmt">// 对输入每个维度求加权和</span>
+            <span class="var">sum</span> = <span class="fn">add</span>(<span class="var">sum</span>, <span class="fn">mul</span>(<span class="var">w</span>[<span class="var">i</span>][<span class="var">j</span>], <span class="var">x</span>[<span class="var">j</span>]));  <span class="cmt">// sum += w[i][j] * x[j]</span>
+        }
+        <span class="var">out</span>.<span class="fn">push</span>(<span class="var">sum</span>);
+    }
+    <span class="kw">return</span> <span class="var">out</span>;
+}</code></pre>
+    </div>
+
+    <div class="visual">
+      <div style="font-size:13px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">
+        <div>
+          <div style="color:var(--text3);font-size:11px;margin-bottom:6px;">输入 x = [2, 3]</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="background:var(--surface2);border:1px solid #56cfb2;border-radius:6px;padding:6px 12px;color:#56cfb2;font-weight:700;">2</div>
+            <div style="background:var(--surface2);border:1px solid #56cfb2;border-radius:6px;padding:6px 12px;color:#56cfb2;font-weight:700;">3</div>
+          </div>
+        </div>
+        <div style="color:var(--text3);font-size:24px;">×</div>
+        <div>
+          <div style="color:var(--text3);font-size:11px;margin-bottom:6px;">权重 w（2行×2列）</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <div style="background:var(--surface2);border:1px solid #7c6ff7;border-radius:6px;padding:6px 10px;color:#7c6ff7;font-weight:700;">1</div>
+            <div style="background:var(--surface2);border:1px solid #7c6ff7;border-radius:6px;padding:6px 10px;color:#7c6ff7;font-weight:700;">2</div>
+            <div style="background:var(--surface2);border:1px solid #7c6ff7;border-radius:6px;padding:6px 10px;color:#7c6ff7;font-weight:700;">3</div>
+            <div style="background:var(--surface2);border:1px solid #7c6ff7;border-radius:6px;padding:6px 10px;color:#7c6ff7;font-weight:700;">0</div>
+          </div>
+        </div>
+        <div style="color:var(--text3);font-size:24px;">=</div>
+        <div>
+          <div style="color:var(--text3);font-size:11px;margin-bottom:6px;">输出 [8, 6]</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="background:var(--surface2);border:1px solid #f7a14f;border-radius:6px;padding:6px 12px;color:#f7a14f;font-weight:700;">8 = 1×2+2×3</div>
+            <div style="background:var(--surface2);border:1px solid #f7a14f;border-radius:6px;padding:6px 12px;color:#f7a14f;font-weight:700;">6 = 3×2+0×3</div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">linear 就是矩阵乘法：每行权重与输入做点积，得到输出的一个维度</div>
+    </div>
+
+    <h3>② softmax —— 把分数变成概率</h3>
+    <p>模型最后输出的是每个词的"得分"，但我们需要的是概率（所有词的概率加起来 = 1）。Softmax 就是做这个转换的。</p>
+
+    <div class="box info">
+      <span class="box-icon">🎯</span>
+      <div class="box-content">
+        <div class="box-title">类比：投票比例</div>
+        <p>3个候选词得分是 [2, 1, 0]。Softmax 先把每个分数做 e^x（指数），得到 [e², e¹, e⁰] ≈ [7.39, 2.72, 1.00]，然后除以总和 11.11，得到概率 [66%, 24%, 9%]。分数越高，概率越大。</p>
+      </div>
+    </div>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>softmax 函数（含数值稳定性处理）</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">softmax</span>(<span class="var">xs</span>) {
+    <span class="cmt">// 技巧：先减去最大值，防止 e^很大的数溢出（数值稳定性）</span>
+    <span class="kw">var</span> <span class="var">max</span> = <span class="var">xs</span>[<span class="num">0</span>].data;
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">1</span>; <span class="var">i</span> &lt; <span class="var">xs</span>.length; <span class="var">i</span>++) {
+        <span class="kw">if</span> (<span class="var">xs</span>[<span class="var">i</span>].data > <span class="var">max</span>) <span class="var">max</span> = <span class="var">xs</span>[<span class="var">i</span>].data;
+    }
+
+    <span class="kw">var</span> <span class="var">exps</span> = [];
+    <span class="kw">var</span> <span class="var">sum</span> = <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">0</span>);
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">xs</span>.length; <span class="var">i</span>++) {
+        <span class="cmt">// e^(x - max)：减去最大值后再求指数，结果相同但不会溢出</span>
+        <span class="kw">var</span> <span class="var">e</span> = <span class="fn">expv</span>(<span class="fn">sub</span>(<span class="var">xs</span>[<span class="var">i</span>], <span class="kw">new</span> <span class="fn">Value</span>(<span class="var">max</span>)));
+        <span class="var">exps</span>.<span class="fn">push</span>(<span class="var">e</span>);
+        <span class="var">sum</span> = <span class="fn">add</span>(<span class="var">sum</span>, <span class="var">e</span>);
+    }
+
+    <span class="kw">var</span> <span class="var">probs</span> = [];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">exps</span>.length; <span class="var">i</span>++) {
+        <span class="cmt">// 每个 e^x 除以总和 = 概率</span>
+        <span class="var">probs</span>.<span class="fn">push</span>(<span class="fn">mul</span>(<span class="var">exps</span>[<span class="var">i</span>], <span class="fn">pow</span>(<span class="var">sum</span>, -<span class="num">1</span>)));
+    }
+    <span class="kw">return</span> <span class="var">probs</span>;
+}</code></pre>
+    </div>
+
+    <h3>③ rmsnorm —— 让数字保持"规范"</h3>
+    <p>在神经网络深处，数字可能越来越大或越来越小，导致训练不稳定。RMSNorm（均方根归一化）把所有维度的值"缩放"到合理范围。</p>
+
+    <div class="box info">
+      <span class="box-icon">📏</span>
+      <div class="box-content">
+        <div class="box-title">类比：调整音量</div>
+        <p>录音时有些声音太大、有些太小。归一化就像自动调音量：先测量整段声音的"平均能量"，然后把每个声音除以这个能量值，让整体音量统一。</p>
+      </div>
+    </div>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>rmsnorm 函数</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">rmsnorm</span>(<span class="var">x</span>) {
+    <span class="cmt">// 第一步：计算所有值的平方和 ÷ 个数（均方值）</span>
+    <span class="kw">var</span> <span class="var">sum</span> = <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">0</span>);
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">x</span>.length; <span class="var">i</span>++) {
+        <span class="var">sum</span> = <span class="fn">add</span>(<span class="var">sum</span>, <span class="fn">mul</span>(<span class="var">x</span>[<span class="var">i</span>], <span class="var">x</span>[<span class="var">i</span>]));  <span class="cmt">// sum += x[i]²</span>
+    }
+    <span class="kw">var</span> <span class="var">mean</span>  = <span class="fn">mul</span>(<span class="var">sum</span>, <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">1</span> / <span class="var">x</span>.length)); <span class="cmt">// 均方值</span>
+    <span class="cmt">// 第二步：scale = 1 / sqrt(均方值 + 极小数)，防止除以0</span>
+    <span class="kw">var</span> <span class="var">scale</span> = <span class="fn">pow</span>(<span class="fn">add</span>(<span class="var">mean</span>, <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">1e-5</span>)), -<span class="num">0.5</span>);
+
+    <span class="kw">var</span> <span class="var">out</span> = [];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">x</span>.length; <span class="var">i</span>++) {
+        <span class="var">out</span>.<span class="fn">push</span>(<span class="fn">mul</span>(<span class="var">x</span>[<span class="var">i</span>], <span class="var">scale</span>));  <span class="cmt">// 每个值乘以缩放因子</span>
+    }
+    <span class="kw">return</span> <span class="var">out</span>;
+}</code></pre>
+    </div>
+
+    <div class="visual">
+      <div style="font-size:13px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="color:var(--text3);font-size:11px;">输入 x = [4, -2, 4]</div>
+          <div style="color:var(--accent4);font-weight:700;margin-top:4px;">均方 = (16+4+16)/3 ≈ 12</div>
+          <div style="color:var(--accent4);font-weight:700;">RMS = √12 ≈ 3.46</div>
+        </div>
+        <div style="font-size:24px;color:var(--text3);">→</div>
+        <div style="text-align:center;">
+          <div style="color:var(--text3);font-size:11px;">输出 = x / RMS</div>
+          <div style="color:var(--accent2);font-weight:700;margin-top:4px;">[4/3.46, -2/3.46, 4/3.46]</div>
+          <div style="color:var(--accent2);font-weight:700;">≈ [1.15, -0.58, 1.15]</div>
+        </div>
+      </div>
+      <div class="caption">RMSNorm 把值缩放到更小的范围，让后续计算更稳定</div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 8 章：注意力机制
+  ============================= -->
+  <section class="chapter" id="ch8">
+    <div class="chapter-header">
+      <div class="chapter-num">8</div>
+      <div>
+        <h2>注意力机制：谁跟谁有关系？</h2>
+        <p>多头自注意力 —— GPT 最核心的创新，让词语学会"关注"彼此</p>
+      </div>
+    </div>
+
+    <p>注意力机制是 GPT 最关键的部分。它让模型在处理每个词时，能"回头看"之前出现过的所有词，并判断哪些词对当前位置最重要。</p>
+
+    <div class="box info">
+      <span class="box-icon">🔍</span>
+      <div class="box-content">
+        <div class="box-title">类比：考试找答案</div>
+        <p>老师问"那个小明去了哪里？"你要在文章里找"小明"这个词附近的信息。注意力机制就是这样：当前词（"哪里"）像一个"问题"（Query），文章里的每个词是"线索"（Key），答案信息（Value）根据相关度加权提取。</p>
+      </div>
+    </div>
+
+    <h3>三个核心概念：Q、K、V</h3>
+
+    <div class="cards">
+      <div class="card">
+        <div class="emoji">❓</div>
+        <h4>Query（问题）</h4>
+        <p>当前词想问的问题：<br>"我需要什么信息？"</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🔑</div>
+        <h4>Key（关键词）</h4>
+        <p>每个历史词的"标签"：<br>"我能提供什么信息？"</p>
+      </div>
+      <div class="card">
+        <div class="emoji">📦</div>
+        <h4>Value（内容）</h4>
+        <p>每个历史词的实际内容：<br>"我的具体信息是什么？"</p>
+      </div>
+      <div class="card">
+        <div class="emoji">📊</div>
+        <h4>Score（相关度）</h4>
+        <p>Q 和 K 的点积，越大代表越相关，用 Softmax 转成权重</p>
+      </div>
+    </div>
+
+    <h3>注意力计算步骤</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-dot"><div class="dot">1</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>把输入变成 Q、K、V</h4>
+          <p>把当前位置的嵌入向量 x，分别通过三个不同的权重矩阵（attn_wq/wk/wv），变换成三个向量 q、k、v。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">2</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>计算相关度分数</h4>
+          <p>把当前的 q 和每个历史位置的 k 做点积，再除以 √headDim（防止值太大导致 softmax 梯度消失）。</p>
+          <div class="formula">score(t) = (q · k_t) / √headDim</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">3</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>Softmax 转成注意力权重</h4>
+          <p>把所有历史位置的分数做 Softmax，得到概率分布（权重之和 = 1）。分数越高，该历史位置被"关注"越多。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">4</div></div>
+        <div class="step-body">
+          <h4>加权求和 Values</h4>
+          <p>用注意力权重对所有历史位置的 v 做加权平均，得到这个"头"的输出。</p>
+          <div class="formula">attn_out = Σ weight(t) × v(t)</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>代码解析：多头注意力</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>注意力机制核心代码（gpt 函数内）</span></div>
+      <pre><code><span class="cmt">// 计算 Q K V（通过线性变换）</span>
+<span class="kw">var</span> <span class="var">q</span> = <span class="fn">linear</span>(<span class="var">x</span>, state.<span class="var">attn_wq</span>);  <span class="cmt">// 当前位置的 Query（问题）</span>
+<span class="kw">var</span> <span class="var">k</span> = <span class="fn">linear</span>(<span class="var">x</span>, state.<span class="var">attn_wk</span>);  <span class="cmt">// 当前位置的 Key（标签）</span>
+<span class="kw">var</span> <span class="var">v</span> = <span class="fn">linear</span>(<span class="var">x</span>, state.<span class="var">attn_wv</span>);  <span class="cmt">// 当前位置的 Value（内容）</span>
+
+<span class="var">keys</span>.<span class="fn">push</span>(<span class="var">k</span>);    <span class="cmt">// 把当前的 k 加入历史 Key 列表</span>
+<span class="var">values</span>.<span class="fn">push</span>(<span class="var">v</span>); <span class="cmt">// 把当前的 v 加入历史 Value 列表</span>
+
+<span class="cmt">// 多头注意力：nHead 个头并行计算</span>
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">h</span> = <span class="num">0</span>; <span class="var">h</span> &lt; <span class="var">nHead</span>; <span class="var">h</span>++) {
+    <span class="kw">var</span> <span class="var">hs</span> = <span class="var">h</span> * <span class="var">headDim</span>;  <span class="cmt">// 每个头负责的维度起始位置</span>
+
+    <span class="cmt">// 计算当前头与所有历史位置的相关度分数</span>
+    <span class="kw">var</span> <span class="var">logits</span> = [];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">t</span> = <span class="num">0</span>; <span class="var">t</span> &lt; <span class="var">keys</span>.length; <span class="var">t</span>++) {
+        <span class="kw">var</span> <span class="var">score</span> = <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">0</span>);
+        <span class="kw">for</span> (<span class="var">j</span> = <span class="num">0</span>; <span class="var">j</span> &lt; <span class="var">headDim</span>; <span class="var">j</span>++) {
+            <span class="cmt">// q 与 k 的点积（只在本头负责的维度）</span>
+            <span class="var">score</span> = <span class="fn">add</span>(<span class="var">score</span>, <span class="fn">mul</span>(<span class="var">q</span>[<span class="var">hs</span>+<span class="var">j</span>], <span class="var">keys</span>[<span class="var">t</span>][<span class="var">hs</span>+<span class="var">j</span>]));
+        }
+        <span class="cmt">// 除以 √headDim 防止值太大（缩放点积）</span>
+        <span class="var">score</span> = <span class="fn">mul</span>(<span class="var">score</span>, <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">1</span> / Math.<span class="fn">sqrt</span>(<span class="var">headDim</span>)));
+        <span class="var">logits</span>.<span class="fn">push</span>(<span class="var">score</span>);
+    }
+
+    <span class="cmt">// 用 softmax 把分数变成注意力权重（概率）</span>
+    <span class="kw">var</span> <span class="var">weights</span> = <span class="fn">softmax</span>(<span class="var">logits</span>);
+
+    <span class="cmt">// 用权重对 Value 加权求和</span>
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">j</span> = <span class="num">0</span>; <span class="var">j</span> &lt; <span class="var">headDim</span>; <span class="var">j</span>++) {
+        <span class="kw">var</span> <span class="var">sum</span> = <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">0</span>);
+        <span class="kw">for</span> (<span class="kw">var</span> <span class="var">t</span> = <span class="num">0</span>; <span class="var">t</span> &lt; <span class="var">values</span>.length; <span class="var">t</span>++) {
+            <span class="var">sum</span> = <span class="fn">add</span>(<span class="var">sum</span>, <span class="fn">mul</span>(<span class="var">weights</span>[<span class="var">t</span>], <span class="var">values</span>[<span class="var">t</span>][<span class="var">hs</span>+<span class="var">j</span>]));
+        }
+        <span class="var">attn_out</span>[<span class="var">hs</span>+<span class="var">j</span>] = <span class="var">sum</span>;  <span class="cmt">// 存入对应维度</span>
+    }
+}</code></pre>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">💡</span>
+      <div class="box-content">
+        <div class="box-title">为什么要"多头"？</div>
+        <p>4个头同时工作，每个头只关注向量的一部分（4维），专注于不同类型的关系：有的头学语法关系，有的头学语义关系，有的头学位置关系。最后把4个头的结果拼在一起，获得更丰富的表达。</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <h4>✏️ 小练习：理解注意力权重</h4>
+      <p>假设处理句子 "the cat sat"，当处理 "sat" 时：</p>
+      <ul>
+        <li>q（sat的问题）与 k（the的标签）点积 = 0.1</li>
+        <li>q（sat的问题）与 k（cat的标签）点积 = 2.5</li>
+        <li>q（sat的问题）与 k（sat的标签）点积 = 1.0</li>
+      </ul>
+      <p>经过 softmax 后，"cat" 的注意力权重最大，说明 "sat" 这个词最关注 "cat"——这符合语法直觉（是猫在坐）。</p>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 9 章：MLP 前馈层
+  ============================= -->
+  <section class="chapter" id="ch9">
+    <div class="chapter-header">
+      <div class="chapter-num">9</div>
+      <div>
+        <h2>MLP 前馈层：每个位置独立思考</h2>
+        <p>注意力之后的"深度思考"模块 —— 扩展、激活、压缩</p>
+      </div>
+    </div>
+
+    <p>注意力机制负责"信息汇聚"（把所有历史位置的信息整合到当前位置），而 MLP（多层感知机）负责"深度加工"——对汇聚后的信息做非线性变换，提取更复杂的特征。</p>
+
+    <div class="box info">
+      <span class="box-icon">🧪</span>
+      <div class="box-content">
+        <div class="box-title">类比：过滤器</div>
+        <p>注意力就像把很多原材料混合在一起，而 MLP 就像化学实验：先把混合物放进一个大容器扩展（16→64），在里面发生化学反应（ReLU 激活：只保留"正反应"），然后再提炼浓缩回去（64→16）。这个过程可以提取出更深层的特征。</p>
+      </div>
+    </div>
+
+    <h3>MLP 的三步流程</h3>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>MLP 前馈层代码</span></div>
+      <pre><code><span class="cmt">// 注意力之后，残差连接保存原始信息</span>
+<span class="kw">var</span> <span class="var">proj</span> = <span class="fn">linear</span>(<span class="var">attn_out</span>, state.<span class="var">attn_wo</span>);  <span class="cmt">// 注意力输出投影</span>
+<span class="var">x_res</span> = <span class="var">x</span>;  <span class="cmt">// 保存当前 x 作为残差（"跳过连接"的原始值）</span>
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">nEmb</span>; <span class="var">i</span>++) {
+    <span class="var">x</span>[<span class="var">i</span>] = <span class="fn">add</span>(<span class="var">proj</span>[<span class="var">i</span>], <span class="var">x_res</span>[<span class="var">i</span>]);  <span class="cmt">// x = 注意力输出 + 残差</span>
+}
+
+<span class="cmt">// MLP 开始</span>
+<span class="var">x_res</span> = <span class="var">x</span>;                        <span class="cmt">// 再次保存残差</span>
+<span class="var">x</span> = <span class="fn">rmsnorm</span>(<span class="var">x</span>);                   <span class="cmt">// 第一步：归一化</span>
+
+<span class="var">x</span> = <span class="fn">linear</span>(<span class="var">x</span>, state.<span class="var">mlp_fc1</span>);    <span class="cmt">// 第二步：扩展 16 → 64（nEmb → 4×nEmb）</span>
+
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">x</span>.length; <span class="var">i</span>++) {
+    <span class="var">x</span>[<span class="var">i</span>] = <span class="fn">relu</span>(<span class="var">x</span>[<span class="var">i</span>]);             <span class="cmt">// 第三步：ReLU 激活（负值清零）</span>
+}
+
+<span class="var">x</span> = <span class="fn">linear</span>(<span class="var">x</span>, state.<span class="var">mlp_fc2</span>);    <span class="cmt">// 第四步：压缩 64 → 16（4×nEmb → nEmb）</span>
+
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">nEmb</span>; <span class="var">i</span>++) {
+    <span class="var">x</span>[<span class="var">i</span>] = <span class="fn">add</span>(<span class="var">x</span>[<span class="var">i</span>], <span class="var">x_res</span>[<span class="var">i</span>]);    <span class="cmt">// 第五步：加上残差连接</span>
+}</code></pre>
+    </div>
+
+    <div class="visual">
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12px;">
+        <div style="background:rgba(86,207,178,0.15);border:2px solid #56cfb2;border-radius:8px;padding:10px 14px;text-align:center;">
+          <div style="color:#56cfb2;font-weight:700;">x (16维)</div>
+          <div style="color:var(--text3);">归一化后</div>
+        </div>
+        <div style="color:var(--text3);">→</div>
+        <div style="background:rgba(124,111,247,0.15);border:2px solid #7c6ff7;border-radius:8px;padding:10px 14px;text-align:center;">
+          <div style="color:#7c6ff7;font-weight:700;">fc1 (64维)</div>
+          <div style="color:var(--text3);">扩展×4</div>
+        </div>
+        <div style="color:var(--text3);">→</div>
+        <div style="background:rgba(247,111,124,0.15);border:2px solid #f76f7c;border-radius:8px;padding:10px 14px;text-align:center;">
+          <div style="color:#f76f7c;font-weight:700;">ReLU</div>
+          <div style="color:var(--text3);">负值→0</div>
+        </div>
+        <div style="color:var(--text3);">→</div>
+        <div style="background:rgba(247,161,79,0.15);border:2px solid #f7a14f;border-radius:8px;padding:10px 14px;text-align:center;">
+          <div style="color:#f7a14f;font-weight:700;">fc2 (16维)</div>
+          <div style="color:var(--text3);">压缩回去</div>
+        </div>
+        <div style="color:var(--text3);">→</div>
+        <div style="background:rgba(86,207,178,0.15);border:2px solid #56cfb2;border-radius:8px;padding:10px 14px;text-align:center;">
+          <div style="color:#56cfb2;font-weight:700;">+ 残差</div>
+          <div style="color:var(--text3);">加原始值</div>
+        </div>
+      </div>
+      <div class="caption">MLP 流程：16→64（扩展）→ReLU（激活）→16（压缩）→加残差</div>
+    </div>
+
+    <div class="box warn">
+      <span class="box-icon">⚡</span>
+      <div class="box-content">
+        <div class="box-title">什么是残差连接？</div>
+        <p>残差连接就是"抄近路"：把处理前的 x 直接加到处理后的 x 上。这样即使中间层出了问题（梯度为0），原始信息也能通过"近路"直接传到后面，防止深层网络训练困难。就像考试允许你把草稿纸带进去，万一脑子卡住了，直接看草稿。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 10 章：GPT 完整前向
+  ============================= -->
+  <section class="chapter" id="ch10">
+    <div class="chapter-header">
+      <div class="chapter-num">10</div>
+      <div>
+        <h2>GPT 完整前向传播</h2>
+        <p>把词嵌入、注意力、MLP 串起来，输出下一个词的概率</p>
+      </div>
+    </div>
+
+    <p>前面学的所有模块，现在串联起来就是 GPT 的完整前向传播过程。函数 <code>gpt(tokenId, posId, keys, values)</code> 每次处理一个 token（字符），返回对下一个字符的预测分数。</p>
+
+    <h3>gpt 函数完整流程</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-dot"><div class="dot">1</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>词嵌入 + 位置嵌入</h4>
+          <p>从 <code>wte</code> 取出当前词的向量，从 <code>wpe</code> 取出当前位置的向量，两个向量对应位置相加，得到"这个词在这个位置"的综合表示 x。</p>
+          <div class="formula">x[i] = wte[tokenId][i] + wpe[posId][i]</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">2</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>第一次 RMSNorm</h4>
+          <p>对 x 做归一化，保持数值稳定。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">3</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>保存残差</h4>
+          <p><code>x_res = x</code>，留作后面残差连接用。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">4</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>多头自注意力</h4>
+          <p>把 x 变成 Q、K、V，计算与历史所有位置的注意力权重，加权得到注意力输出，再经过 attn_wo 投影，加上残差 x_res。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">5</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>MLP 前馈层</h4>
+          <p>再次 RMSNorm → 扩展 → ReLU → 压缩 → 加残差，完成深度特征提取。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">6</div></div>
+        <div class="step-body">
+          <h4>输出层（lm_head）</h4>
+          <p>把最终的 16 维向量通过 <code>lm_head</code> 矩阵变换成词表大小的分数向量（logits），每个分数对应"下一个词是这个字符"的可能性。</p>
+          <div class="formula">logits = linear(x, lm_head)  →  长度 = vocabSize</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="visual">
+      <div style="font-size:12px;color:var(--text2);">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div style="background:rgba(86,207,178,0.1);border:1px solid #56cfb2;border-radius:8px;padding:8px 24px;text-align:center;min-width:260px;">
+            <span style="color:#56cfb2;font-weight:700;">① 词嵌入 + 位置嵌入</span>
+            <span style="color:var(--text3);margin-left:8px;">wte[id] + wpe[pos]</span>
+          </div>
+          <div style="color:var(--text3);">↓ x (16维)</div>
+          <div style="background:rgba(124,111,247,0.1);border:1px solid #7c6ff7;border-radius:8px;padding:8px 24px;text-align:center;min-width:260px;">
+            <span style="color:#7c6ff7;font-weight:700;">② RMSNorm → 保存残差</span>
+          </div>
+          <div style="color:var(--text3);">↓</div>
+          <div style="background:rgba(247,161,79,0.1);border:1px solid #f7a14f;border-radius:8px;padding:8px 24px;text-align:center;min-width:260px;">
+            <span style="color:#f7a14f;font-weight:700;">③ 多头自注意力</span>
+            <span style="color:var(--text3);margin-left:8px;">Q×K→softmax→×V</span>
+          </div>
+          <div style="color:var(--text3);">↓ + 残差</div>
+          <div style="background:rgba(247,111,124,0.1);border:1px solid #f76f7c;border-radius:8px;padding:8px 24px;text-align:center;min-width:260px;">
+            <span style="color:#f76f7c;font-weight:700;">④ MLP 前馈层</span>
+            <span style="color:var(--text3);margin-left:8px;">16→64→ReLU→16</span>
+          </div>
+          <div style="color:var(--text3);">↓ + 残差</div>
+          <div style="background:rgba(86,207,178,0.1);border:1px solid #56cfb2;border-radius:8px;padding:8px 24px;text-align:center;min-width:260px;">
+            <span style="color:#56cfb2;font-weight:700;">⑤ lm_head 输出层</span>
+            <span style="color:var(--text3);margin-left:8px;">16 → vocabSize 个分数</span>
+          </div>
+        </div>
+      </div>
+      <div class="caption">GPT 一次前向传播的完整路径</div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 11 章：Adam 优化器
+  ============================= -->
+  <section class="chapter" id="ch11">
+    <div class="chapter-header">
+      <div class="chapter-num">11</div>
+      <div>
+        <h2>Adam 优化器：聪明的学习方式</h2>
+        <p>比简单梯度下降更聪明 —— 记住历史，动态调整步长</p>
+      </div>
+    </div>
+
+    <p>反向传播得到每个参数的梯度（知道了应该往哪个方向调整），接下来优化器负责决定"调整多少"。Adam 是目前最常用的优化器之一。</p>
+
+    <div class="box info">
+      <span class="box-icon">🏃</span>
+      <div class="box-content">
+        <div class="box-title">类比：聪明的球滚下山</div>
+        <p><strong>普通梯度下降</strong>像一个盲目的球：每次只看眼前坡度，步子固定，可能在谷底反复震荡。<br>
+        <strong>Adam</strong> 像一个聪明的滑雪者：① 有惯性（动量，m）—— 记住之前的方向继续滑；② 会根据地形自适应（v）—— 坡度起伏大的地方步子小，平坦的地方步子大。</p>
+      </div>
+    </div>
+
+    <h3>Adam 的两个"记忆"</h3>
+    <table>
+      <tr><th>变量</th><th>名称</th><th>记住什么</th><th>类比</th></tr>
+      <tr><td><code>m[i]</code></td><td>一阶矩（动量）</td><td>梯度的"移动平均"</td><td>之前走的方向的记忆</td></tr>
+      <tr><td><code>v[i]</code></td><td>二阶矩（自适应）</td><td>梯度平方的"移动平均"</td><td>这个方向历史上有多"抖动"</td></tr>
+    </table>
+
+    <h3>Adam 更新公式（逐行解析）</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>Adam 优化器更新步骤</span></div>
+      <pre><code><span class="kw">var</span> <span class="var">lr</span>    = <span class="num">0.01</span>;    <span class="cmt">// 学习率：每步最多走多远</span>
+<span class="kw">var</span> <span class="var">beta1</span> = <span class="num">0.85</span>;   <span class="cmt">// 动量系数：0.85 = 记住85%的历史方向</span>
+<span class="kw">var</span> <span class="var">beta2</span> = <span class="num">0.99</span>;   <span class="cmt">// 自适应系数：0.99 = 记住99%的历史抖动</span>
+<span class="kw">var</span> <span class="var">eps</span>   = <span class="num">1e-8</span>;   <span class="cmt">// 极小数，防止除以0</span>
+
+<span class="cmt">// 学习率随训练进度线性衰减（开始快，后期慢）</span>
+<span class="kw">var</span> <span class="var">lr_t</span> = <span class="var">lr</span> * (<span class="num">1</span> - <span class="var">step</span> / <span class="var">steps</span>);
+
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">params</span>.length; <span class="var">i</span>++) {
+    <span class="cmt">// 第一步：更新动量 m（梯度的指数移动平均）</span>
+    <span class="var">m</span>[<span class="var">i</span>] = <span class="var">beta1</span> * <span class="var">m</span>[<span class="var">i</span>] + (<span class="num">1</span> - <span class="var">beta1</span>) * <span class="var">params</span>[<span class="var">i</span>].grad;
+    <span class="cmt">// = 85% × 历史方向 + 15% × 当前梯度</span>
+
+    <span class="cmt">// 第二步：更新自适应 v（梯度平方的指数移动平均）</span>
+    <span class="var">v</span>[<span class="var">i</span>] = <span class="var">beta2</span> * <span class="var">v</span>[<span class="var">i</span>] + (<span class="num">1</span> - <span class="var">beta2</span>) * <span class="var">params</span>[<span class="var">i</span>].grad * <span class="var">params</span>[<span class="var">i</span>].grad;
+    <span class="cmt">// = 99% × 历史抖动 + 1% × 当前梯度²</span>
+
+    <span class="cmt">// 第三步：偏差修正（训练初期 m/v 接近0，需要放大）</span>
+    <span class="kw">var</span> <span class="var">mh</span> = <span class="var">m</span>[<span class="var">i</span>] / (<span class="num">1</span> - Math.<span class="fn">pow</span>(<span class="var">beta1</span>, <span class="var">step</span>+<span class="num">1</span>));  <span class="cmt">// 校正后的 m</span>
+    <span class="kw">var</span> <span class="var">vh</span> = <span class="var">v</span>[<span class="var">i</span>] / (<span class="num">1</span> - Math.<span class="fn">pow</span>(<span class="var">beta2</span>, <span class="var">step</span>+<span class="num">1</span>));  <span class="cmt">// 校正后的 v</span>
+
+    <span class="cmt">// 第四步：更新参数（沿梯度反方向走一小步）</span>
+    <span class="var">params</span>[<span class="var">i</span>].data -= <span class="var">lr_t</span> * <span class="var">mh</span> / (Math.<span class="fn">sqrt</span>(<span class="var">vh</span>) + <span class="var">eps</span>);
+    <span class="cmt">// lr_t × mh/√vh：动量方向 ÷ 抖动程度 = 自适应步长</span>
+
+    <span class="cmt">// 清零梯度（下次反向传播重新计算）</span>
+    <span class="var">params</span>[<span class="var">i</span>].grad = <span class="num">0</span>;
+}</code></pre>
+    </div>
+
+    <div class="visual">
+      <div style="font-size:12px;max-width:500px;margin:0 auto;">
+        <div style="text-align:left;margin-bottom:12px;color:var(--text2);">Adam 更新的直觉理解（以一个参数为例）：</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;display:flex;gap:12px;align-items:center;">
+            <div style="color:var(--accent);font-size:18px;font-weight:700;min-width:24px;">g</div>
+            <div style="color:var(--text2);">当前梯度 = +0.5（需要减小参数）</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;display:flex;gap:12px;align-items:center;">
+            <div style="color:var(--accent2);font-size:18px;font-weight:700;min-width:24px;">m</div>
+            <div style="color:var(--text2);">动量 = 0.85×(旧m) + 0.15×0.5，平滑方向</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;display:flex;gap:12px;align-items:center;">
+            <div style="color:var(--accent3);font-size:18px;font-weight:700;min-width:24px;">v</div>
+            <div style="color:var(--text2);">自适应 = 0.99×(旧v) + 0.01×0.25，记录抖动</div>
+          </div>
+          <div style="background:rgba(124,111,247,0.1);border:1px solid var(--accent);border-radius:8px;padding:10px 14px;display:flex;gap:12px;align-items:center;">
+            <div style="color:var(--accent);font-size:18px;font-weight:700;min-width:24px;">Δ</div>
+            <div style="color:var(--text2);">参数更新 = -lr × m/√v，抖动大则步子小</div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">Adam 的核心思想：用历史信息动态调整每个参数的学习步长</div>
+    </div>
+
+    <div class="exercise">
+      <h4>✏️ 小练习：手算一步 Adam</h4>
+      <p>给定：lr=0.01, beta1=0.9, beta2=0.99, step=0<br>
+      初始 m=0, v=0，当前梯度 g=0.4</p>
+      <ol>
+        <li>m = 0.9×0 + 0.1×0.4 = <strong>0.04</strong></li>
+        <li>v = 0.99×0 + 0.01×0.16 = <strong>0.0016</strong></li>
+        <li>mh = 0.04 / (1 - 0.9¹) = 0.04/0.1 = <strong>0.4</strong></li>
+        <li>vh = 0.0016 / (1 - 0.99¹) = 0.0016/0.01 = <strong>0.16</strong></li>
+        <li>Δ = -0.01 × 0.4 / (√0.16 + 1e-8) ≈ -0.01 × 0.4/0.4 = <strong>-0.01</strong></li>
+      </ol>
+      <p style="margin-top:8px;color:var(--text3);font-size:12px;">偏差修正的作用：把实际 m=0.04 "放大"成 0.4，因为训练刚开始动量还没积累够。</p>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 12 章：训练循环
+  ============================= -->
+  <section class="chapter" id="ch12">
+    <div class="chapter-header">
+      <div class="chapter-num">12</div>
+      <div>
+        <h2>训练循环：反复练习直到掌握</h2>
+        <p>把所有模块串起来，让模型不断从错误中学习</p>
+      </div>
+    </div>
+
+    <p>训练循环就是把前向传播、损失计算、反向传播、参数更新这四步不断重复，每次重复叫一个"step（步骤）"。</p>
+
+    <h3>损失函数：交叉熵</h3>
+    <p>模型的"错误"用<strong>交叉熵损失</strong>来衡量。公式很简单：<code>-log(正确答案的概率)</code>。概率越高（模型越自信且正确），损失越小；概率越低，损失越大。</p>
+
+    <div class="visual">
+      <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;font-size:13px;">
+        <div style="text-align:center;">
+          <div style="color:var(--accent2);font-weight:700;margin-bottom:4px;">正确答案概率 = 0.9</div>
+          <div style="color:var(--accent2);font-size:20px;font-weight:700;">损失 = -log(0.9) ≈ 0.1</div>
+          <div style="color:var(--text3);font-size:11px;">模型很自信，损失小</div>
+        </div>
+        <div style="border-left:1px solid var(--border);"></div>
+        <div style="text-align:center;">
+          <div style="color:var(--accent4);font-weight:700;margin-bottom:4px;">正确答案概率 = 0.1</div>
+          <div style="color:var(--accent4);font-size:20px;font-weight:700;">损失 = -log(0.1) ≈ 2.3</div>
+          <div style="color:var(--text3);font-size:11px;">模型不自信，损失大</div>
+        </div>
+      </div>
+      <div class="caption">交叉熵损失：概率越接近1，损失越接近0；概率越低，损失越大</div>
+    </div>
+
+    <h3>训练循环代码解析</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>训练循环完整代码</span></div>
+      <pre><code><span class="kw">var</span> <span class="var">steps</span> = <span class="num">1000</span>;          <span class="cmt">// 总训练步数</span>
+<span class="kw">var</span> <span class="var">startStep</span> = <span class="fn">loadCheckpoint</span>(); <span class="cmt">// 从 checkpoint 继续或从0开始</span>
+
+<span class="kw">for</span> (<span class="kw">var</span> <span class="var">step</span> = <span class="var">startStep</span>; <span class="var">step</span> &lt; <span class="var">steps</span>; <span class="var">step</span>++) {
+
+    <span class="cmt">// ① 选一条训练数据（循环使用所有文档）</span>
+    <span class="kw">var</span> <span class="var">doc</span> = <span class="var">docs</span>[<span class="var">step</span> % <span class="var">docs</span>.length];
+
+    <span class="cmt">// ② 把文档变成 token 序列（加上首尾的 BOS）</span>
+    <span class="kw">var</span> <span class="var">tokens</span> = [<span class="var">BOS</span>];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">doc</span>.length; <span class="var">i</span>++) {
+        <span class="var">tokens</span>.<span class="fn">push</span>(<span class="fn">charToId</span>(<span class="var">doc</span>[<span class="var">i</span>]));
+    }
+    <span class="var">tokens</span>.<span class="fn">push</span>(<span class="var">BOS</span>);  <span class="cmt">// 结尾 BOS 作为"停止"信号</span>
+
+    <span class="cmt">// ③ 前向传播：逐个 token 预测"下一个"，累计损失</span>
+    <span class="kw">var</span> <span class="var">keys</span> = [], <span class="var">values</span> = [];
+    <span class="kw">var</span> <span class="var">loss</span> = <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">0</span>);
+
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">tokens</span>.length - <span class="num">1</span> && <span class="var">i</span> &lt; <span class="var">blockSize</span>; <span class="var">i</span>++) {
+        <span class="kw">var</span> <span class="var">logits</span> = <span class="fn">gpt</span>(<span class="var">tokens</span>[<span class="var">i</span>], <span class="var">i</span>, <span class="var">keys</span>, <span class="var">values</span>);
+        <span class="kw">var</span> <span class="var">probs</span>  = <span class="fn">softmax</span>(<span class="var">logits</span>);
+        <span class="cmt">// 交叉熵：加上 -log(正确答案的概率)</span>
+        <span class="var">loss</span> = <span class="fn">add</span>(<span class="var">loss</span>, <span class="fn">neg</span>(<span class="fn">logv</span>(<span class="var">probs</span>[<span class="var">tokens</span>[<span class="var">i</span>+<span class="num">1</span>]])));
+    }
+
+    <span class="cmt">// ④ 反向传播：计算所有参数的梯度</span>
+    <span class="fn">backward</span>(<span class="var">loss</span>);
+
+    <span class="cmt">// ⑤ Adam 优化：用梯度更新参数</span>
+    <span class="kw">var</span> <span class="var">lr_t</span> = <span class="var">lr</span> * (<span class="num">1</span> - <span class="var">step</span> / <span class="var">steps</span>);
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">params</span>.length; <span class="var">i</span>++) {
+        <span class="var">m</span>[<span class="var">i</span>] = <span class="var">beta1</span>*<span class="var">m</span>[<span class="var">i</span>] + (<span class="num">1</span>-<span class="var">beta1</span>)*<span class="var">params</span>[<span class="var">i</span>].grad;
+        <span class="var">v</span>[<span class="var">i</span>] = <span class="var">beta2</span>*<span class="var">v</span>[<span class="var">i</span>] + (<span class="num">1</span>-<span class="var">beta2</span>)*<span class="var">params</span>[<span class="var">i</span>].grad*<span class="var">params</span>[<span class="var">i</span>].grad;
+        <span class="kw">var</span> <span class="var">mh</span> = <span class="var">m</span>[<span class="var">i</span>] / (<span class="num">1</span>-Math.<span class="fn">pow</span>(<span class="var">beta1</span>,<span class="var">step</span>+<span class="num">1</span>));
+        <span class="kw">var</span> <span class="var">vh</span> = <span class="var">v</span>[<span class="var">i</span>] / (<span class="num">1</span>-Math.<span class="fn">pow</span>(<span class="var">beta2</span>,<span class="var">step</span>+<span class="num">1</span>));
+        <span class="var">params</span>[<span class="var">i</span>].data -= <span class="var">lr_t</span> * <span class="var">mh</span> / (Math.<span class="fn">sqrt</span>(<span class="var">vh</span>) + <span class="var">eps</span>);
+        <span class="var">params</span>[<span class="var">i</span>].grad = <span class="num">0</span>;  <span class="cmt">// 梯度清零</span>
+    }
+
+    <span class="cmt">// ⑥ 每20步打印一次损失</span>
+    <span class="kw">if</span> (<span class="var">step</span> % <span class="num">20</span> === <span class="num">0</span>) {
+        console.<span class="fn">log</span>(<span class="str">'step'</span>, <span class="var">step</span>, <span class="str">'loss'</span>, <span class="var">loss</span>.data.<span class="fn">toFixed</span>(<span class="num">4</span>));
+    }
+}</code></pre>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">📉</span>
+      <div class="box-content">
+        <div class="box-title">训练成功的标志</div>
+        <p>如果训练正常，损失（loss）应该从初始值（比如 3.5）随着步数增加而逐渐减小（比如降到 1.5 以下）。损失越小，模型对数据的理解越准确。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 13 章：保存/加载
+  ============================= -->
+  <section class="chapter" id="ch13">
+    <div class="chapter-header">
+      <div class="chapter-num">13</div>
+      <div>
+        <h2>模型保存与断点续训</h2>
+        <p>把训练结果保存到文件，随时可以继续</p>
+      </div>
+    </div>
+
+    <p>训练一个模型需要很长时间。如果中途断电或关闭程序，之前的训练成果就丢失了。<code>saveCheckpoint</code> 和 <code>loadCheckpoint</code> 解决这个问题：每隔20步保存一次，下次直接从断点继续。</p>
+
+    <h3>保存的内容</h3>
+    <table>
+      <tr><th>字段</th><th>内容</th><th>为什么要保存</th></tr>
+      <tr><td>wte, wpe, 等权重</td><td>所有参数矩阵的数值</td><td>这就是"学到的知识"</td></tr>
+      <tr><td>_m, _v</td><td>Adam 的 m 和 v 数组</td><td>不保存的话，续训时动量从0重来</td></tr>
+      <tr><td>_step</td><td>当前训练步数</td><td>告诉程序从哪一步继续</td></tr>
+      <tr><td>_seed</td><td>随机数种子</td><td>保证续训时数据顺序一致</td></tr>
+      <tr><td>_uchars</td><td>词表字符列表</td><td>确保新运行时词表和保存时完全一致</td></tr>
+    </table>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>checkpoint 核心逻辑</span></div>
+      <pre><code><span class="kw">function</span> <span class="fn">saveCheckpoint</span>(<span class="var">nextStep</span>) {
+    <span class="kw">var</span> <span class="var">saved</span> = {};
+    <span class="var">saved</span>._step  = <span class="var">nextStep</span>;    <span class="cmt">// 记录到了第几步</span>
+    <span class="var">saved</span>._seed  = <span class="var">_seed</span>;       <span class="cmt">// 保存随机数状态</span>
+    <span class="var">saved</span>._uchars = <span class="var">uchars</span>;     <span class="cmt">// 保存词表</span>
+
+    <span class="cmt">// 保存 Adam 状态</span>
+    <span class="var">saved</span>._m = []; <span class="var">saved</span>._v = [];
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">m</span>.length; <span class="var">i</span>++) {
+        <span class="var">saved</span>._m.<span class="fn">push</span>(<span class="var">m</span>[<span class="var">i</span>]);
+        <span class="var">saved</span>._v.<span class="fn">push</span>(<span class="var">v</span>[<span class="var">i</span>]);
+    }
+
+    <span class="cmt">// 把所有参数矩阵的 .data 值提取出来，存为普通数字</span>
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">s</span> = <span class="num">0</span>; <span class="var">s</span> &lt; <span class="var">stateKeys</span>.length; <span class="var">s</span>++) {
+        <span class="var">saved</span>[<span class="var">stateKeys</span>[<span class="var">s</span>]] = <span class="fn">matrixToData</span>(<span class="var">state</span>[<span class="var">stateKeys</span>[<span class="var">s</span>]]);
+    }
+
+    <span class="cmt">// 写入 JSON 文件</span>
+    fs.<span class="fn">writeFileSync</span>(<span class="var">checkpointPath</span>, JSON.<span class="fn">stringify</span>(<span class="var">saved</span>));
+}
+
+<span class="kw">function</span> <span class="fn">loadCheckpoint</span>() {
+    <span class="kw">if</span> (!fs.<span class="fn">existsSync</span>(<span class="var">checkpointPath</span>)) <span class="kw">return</span> <span class="num">0</span>;  <span class="cmt">// 没有文件就从0开始</span>
+
+    <span class="kw">var</span> <span class="var">data</span> = JSON.<span class="fn">parse</span>(fs.<span class="fn">readFileSync</span>(<span class="var">checkpointPath</span>));
+    <span class="fn">checkChars</span>(<span class="var">data</span>._uchars);  <span class="cmt">// 确认词表匹配</span>
+
+    <span class="cmt">// 恢复参数、Adam状态、步数、种子</span>
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">s</span> = <span class="num">0</span>; <span class="var">s</span> &lt; <span class="var">stateKeys</span>.length; <span class="var">s</span>++) {
+        <span class="fn">loadMatrixData</span>(<span class="var">stateKeys</span>[<span class="var">s</span>], <span class="var">data</span>[<span class="var">stateKeys</span>[<span class="var">s</span>]]);
+    }
+    <span class="var">_seed</span> = <span class="var">data</span>._seed;
+    <span class="kw">return</span> <span class="var">data</span>._step;  <span class="cmt">// 返回训练步数，从这里继续</span>
+}</code></pre>
+    </div>
+
+    <div class="box warn">
+      <span class="box-icon">⚠️</span>
+      <div class="box-content">
+        <div class="box-title">词表不匹配时会拒绝加载</div>
+        <p>如果你换了 <code>input.txt</code>（比如从英文名字换成中文诗词），词表会变化，旧 checkpoint 里的参数对应的词就错了。代码里的 <code>checkChars</code> 会检测到这种情况并报错，防止你用错误的参数继续训练。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 14 章：推理生成
+  ============================= -->
+  <section class="chapter" id="ch14">
+    <div class="chapter-header">
+      <div class="chapter-num">14</div>
+      <div>
+        <h2>推理生成：让模型"说话"</h2>
+        <p>用训练好的模型生成新文字 —— 自回归采样</p>
+      </div>
+    </div>
+
+    <p>训练完成后，给模型一个 BOS（开始信号），它就能一个字一个字地生成内容。这个过程叫<strong>自回归生成（Autoregressive Generation）</strong>：每次生成的字，会作为下一步的输入。</p>
+
+    <div class="box info">
+      <span class="box-icon">✍️</span>
+      <div class="box-content">
+        <div class="box-title">类比：接龙游戏</div>
+        <p>你说"今"，模型说"天"；然后你把"今天"给模型，它说"真"；再把"今天真"给它，它说"好"……就这样一直接龙，直到生成结束符号（BOS）。</p>
+      </div>
+    </div>
+
+    <h3>Temperature（温度）：控制创意程度</h3>
+    <p>推理时有个参数叫 <code>temperature</code>（温度），控制生成的"创意程度"：</p>
+    <table>
+      <tr><th>温度值</th><th>效果</th><th>类比</th></tr>
+      <tr><td>低（如 0.2）</td><td>总选概率最高的词，保守且重复</td><td>每次都点同一道菜</td></tr>
+      <tr><td>中（如 0.5）</td><td>平衡创意和合理性</td><td>偶尔尝试新菜</td></tr>
+      <tr><td>高（如 1.5）</td><td>随机性很强，可能出现意外</td><td>随机指着菜单点</td></tr>
+    </table>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="lang">JS</span><span>推理生成完整代码</span></div>
+      <pre><code><span class="kw">for</span> (<span class="kw">var</span> <span class="var">s</span> = <span class="num">0</span>; <span class="var">s</span> &lt; <span class="num">10</span>; <span class="var">s</span>++) {   <span class="cmt">// 生成10条样本</span>
+    <span class="kw">var</span> <span class="var">keys</span> = [], <span class="var">values</span> = [];
+    <span class="kw">var</span> <span class="var">token</span> = <span class="var">BOS</span>;       <span class="cmt">// 从 BOS 开始</span>
+    <span class="kw">var</span> <span class="var">out</span> = [];
+
+    <span class="kw">for</span> (<span class="kw">var</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">blockSize</span>; <span class="var">i</span>++) {
+        <span class="cmt">// 前向传播，得到每个词的得分</span>
+        <span class="kw">var</span> <span class="var">logits</span> = <span class="fn">gpt</span>(<span class="var">token</span>, <span class="var">i</span>, <span class="var">keys</span>, <span class="var">values</span>);
+
+        <span class="cmt">// 用 temperature 缩放 logits（除以温度）</span>
+        <span class="kw">var</span> <span class="var">temperature</span> = <span class="num">0.5</span>;
+        <span class="kw">var</span> <span class="var">scaledLogits</span> = [];
+        <span class="kw">for</span> (<span class="kw">var</span> <span class="var">k</span> = <span class="num">0</span>; <span class="var">k</span> &lt; <span class="var">logits</span>.length; <span class="var">k</span>++) {
+            <span class="var">scaledLogits</span>.<span class="fn">push</span>(<span class="fn">mul</span>(<span class="var">logits</span>[<span class="var">k</span>], <span class="kw">new</span> <span class="fn">Value</span>(<span class="num">1</span>/<span class="var">temperature</span>)));
+        }
+        <span class="kw">var</span> <span class="var">probs</span> = <span class="fn">softmax</span>(<span class="var">scaledLogits</span>);  <span class="cmt">// 变成概率</span>
+
+        <span class="cmt">// 按概率随机采样下一个 token（累积分布采样）</span>
+        <span class="kw">var</span> <span class="var">r</span>   = <span class="fn">rand</span>();   <span class="cmt">// 生成 [0,1) 的随机数</span>
+        <span class="kw">var</span> <span class="var">acc</span> = <span class="num">0</span>;
+        <span class="kw">var</span> <span class="var">next</span> = <span class="var">BOS</span>;    <span class="cmt">// 默认选 BOS（结束符）</span>
+        <span class="kw">for</span> (<span class="kw">var</span> <span class="var">j</span> = <span class="num">0</span>; <span class="var">j</span> &lt; <span class="var">probs</span>.length; <span class="var">j</span>++) {
+            <span class="var">acc</span> += <span class="var">probs</span>[<span class="var">j</span>].data;
+            <span class="kw">if</span> (<span class="var">r</span> &lt; <span class="var">acc</span>) { <span class="var">next</span> = <span class="var">j</span>; <span class="kw">break</span>; }
+        }
+
+        <span class="kw">if</span> (<span class="var">next</span> === <span class="var">BOS</span>) <span class="kw">break</span>;   <span class="cmt">// 遇到结束符，停止生成</span>
+        <span class="var">out</span>.<span class="fn">push</span>(<span class="fn">idToChar</span>(<span class="var">next</span>)); <span class="cmt">// 把 ID 转回字符</span>
+        <span class="var">token</span> = <span class="var">next</span>;              <span class="cmt">// 把当前输出作为下一步输入</span>
+    }
+
+    console.<span class="fn">log</span>(<span class="var">out</span>.<span class="fn">join</span>(<span class="str">''</span>));  <span class="cmt">// 打印生成的名字</span>
+}</code></pre>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">🎲</span>
+      <div class="box-content">
+        <div class="box-title">累积分布采样（如何按概率随机选词）</div>
+        <p>假设词表有3个字，概率是 [0.6, 0.3, 0.1]。累积分布是 [0.6, 0.9, 1.0]。<br>
+        生成随机数 r=0.75：遍历到第2个字时，acc=0.9 ≥ 0.75，选第2个字。<br>
+        这样高概率的字被选中的可能性更大，但低概率的字也有机会被选中（保持多样性）。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================
+       第 15 章：完整手写指南
+  ============================= -->
+  <section class="chapter" id="ch15">
+    <div class="chapter-header">
+      <div class="chapter-num">15</div>
+      <div>
+        <h2>完整代码手写指南</h2>
+        <p>按照这个顺序，一步步从零写出 microgpt.js</p>
+      </div>
+    </div>
+
+    <p>现在你已经理解了每一个模块的原理，下面是从零手写这个程序的推荐顺序。每步后都应该测试一下确认没问题，再进行下一步。</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-dot"><div class="dot">①</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写随机数生成器</h4>
+          <p>先写 <code>rand()</code> 和 <code>randn()</code>，测试：固定种子 42，连续调用3次 rand()，确认输出是确定的。</p>
+          <div class="code-wrap"><pre><code><span class="kw">var</span> _seed = <span class="num">42</span>;
+<span class="kw">function</span> <span class="fn">rand</span>() { _seed = (_seed*<span class="num">16807</span>)%<span class="num">2147483647</span>; <span class="kw">return</span> (_seed-<span class="num">1</span>)/<span class="num">2147483646</span>; }
+<span class="kw">function</span> <span class="fn">randn</span>() { <span class="kw">var</span> u=<span class="fn">rand</span>(),v=<span class="fn">rand</span>(); <span class="kw">return</span> Math.<span class="fn">sqrt</span>(-<span class="num">2</span>*Math.<span class="fn">log</span>(u))*Math.<span class="fn">cos</span>(<span class="num">2</span>*Math.PI*v); }</code></pre></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">②</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写数据加载和分词器</h4>
+          <p>加载文件、按行切分、Fisher-Yates 打乱、建立字符到 ID 的映射，测试：打印 vocabSize 和 BOS 值。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">③</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写 Value 类和六个运算</h4>
+          <p>实现 Value 构造函数，add/mul/neg/sub/pow/logv/expv/relu，测试：<br>
+          <code>var a=new Value(3), b=new Value(4), c=mul(a,b); console.log(c.data); // 应为12</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">④</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写 backward（反向传播）</h4>
+          <p>实现拓扑排序 + 梯度传播，测试：<br>
+          <code>backward(c); console.log(a.grad, b.grad); // 应为 4 2 </code>（c = a×b+a，a.grad=b+1=4, b.grad=a=2）</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">⑤</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写参数初始化</h4>
+          <p>实现 <code>matrix(rows, cols)</code>，创建 state 对象，实现 <code>collectParams()</code>，测试：打印参数总数量。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">⑥</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写三个基础算子</h4>
+          <p>实现 <code>linear</code>、<code>softmax</code>、<code>rmsnorm</code>，测试：<br>
+          softmax([1, 2, 3]) 输出的概率之和应 = 1。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">⑦</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写 gpt 前向传播函数</h4>
+          <p>实现完整的 gpt(tokenId, posId, keys, values) 函数，包括嵌入相加、RMSNorm、多头注意力、MLP、残差连接、lm_head 输出。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">⑧</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写 Adam 优化器 + 训练循环</h4>
+          <p>初始化 m/v 数组，实现训练循环：取数据→前向→累计损失→backward→Adam更新→清零梯度，运行后观察 loss 是否下降。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">⑨</div><div class="line"></div></div>
+        <div class="step-body">
+          <h4>写 checkpoint 保存/加载</h4>
+          <p>实现 saveCheckpoint/loadCheckpoint，加上各种检查函数（checkEqual/checkChars/loadMatrixData），测试：保存后重新加载，loss 从断点继续且和之前一致。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot"><div class="dot">⑩</div></div>
+        <div class="step-body">
+          <h4>写推理生成</h4>
+          <p>实现自回归生成循环，加入 temperature 缩放和累积分布采样，运行后看生成的名字是否越来越像真实名字。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3>关键数字速查表</h3>
+    <table>
+      <tr><th>常量/参数</th><th>值</th><th>含义</th></tr>
+      <tr><td>_seed 初始值</td><td>42</td><td>随机数种子</td></tr>
+      <tr><td>rand 乘数</td><td>16807</td><td>线性同余生成器参数</td></tr>
+      <tr><td>rand 模数</td><td>2147483647</td><td>梅森素数 2³¹-1</td></tr>
+      <tr><td>randn 初始化缩放</td><td>0.08</td><td>防止初始值过大</td></tr>
+      <tr><td>nEmb</td><td>16</td><td>嵌入维度</td></tr>
+      <tr><td>blockSize</td><td>16</td><td>上下文窗口</td></tr>
+      <tr><td>nHead</td><td>4</td><td>注意力头数</td></tr>
+      <tr><td>nLayer</td><td>1</td><td>Transformer层数</td></tr>
+      <tr><td>lr</td><td>0.01</td><td>基础学习率</td></tr>
+      <tr><td>beta1</td><td>0.85</td><td>Adam 动量系数</td></tr>
+      <tr><td>beta2</td><td>0.99</td><td>Adam 自适应系数</td></tr>
+      <tr><td>eps</td><td>1e-8</td><td>防止除零</td></tr>
+      <tr><td>steps</td><td>1000</td><td>总训练步数</td></tr>
+      <tr><td>temperature</td><td>0.5</td><td>推理采样温度</td></tr>
+      <tr><td>rmsnorm eps</td><td>1e-5</td><td>防止除零</td></tr>
+      <tr><td>attn scale</td><td>1/√headDim</td><td>注意力缩放因子</td></tr>
+    </table>
+
+    <div class="divider"></div>
+
+    <h3>常见错误与排查</h3>
+
+    <div class="box danger">
+      <span class="box-icon">🔥</span>
+      <div class="box-content">
+        <div class="box-title">loss 变成 NaN（非数字）</div>
+        <p><strong>原因</strong>：参数初始值太大，或学习率太高，导致数值"爆炸"。<br>
+        <strong>排查</strong>：检查 randn 有没有乘以 0.08；检查 lr 是否正确；检查 rmsnorm 里有没有加 1e-5。</p>
+      </div>
+    </div>
+
+    <div class="box danger">
+      <span class="box-icon">📈</span>
+      <div class="box-content">
+        <div class="box-title">loss 不下降</div>
+        <p><strong>原因</strong>：梯度清零位置不对，或 backward 逻辑有 bug。<br>
+        <strong>排查</strong>：确认每步训练后 params[i].grad 都被设为 0；用简单例子（如单个乘法）验证 backward 结果。</p>
+      </div>
+    </div>
+
+    <div class="box danger">
+      <span class="box-icon">🔁</span>
+      <div class="box-content">
+        <div class="box-title">生成的文字全是同一个字</div>
+        <p><strong>原因</strong>：temperature 太低（趋近于0），每次都选最高概率的字。<br>
+        <strong>排查</strong>：把 temperature 调高（如 0.8 或 1.0）；确认 rand() 每次返回值不同。</p>
+      </div>
+    </div>
+
+    <div class="box tip">
+      <span class="box-icon">🎉</span>
+      <div class="box-content">
+        <div class="box-title">训练成功的标志</div>
+        <p>运行 <code>node microgpt.js</code> 后，你应该看到：<br>
+        1. "num docs: 32033"（或类似数字）<br>
+        2. "vocab size: 27"（26个字母 + BOS）<br>
+        3. step 0 loss 3.xxxx → step 500 loss 2.xxxx → step 1000 loss 1.xxxx（逐渐减小）<br>
+        4. inference 部分输出像真实名字的字符串，如 "emma"、"james"、"sofia" 等</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3>🎓 总结：你已经学会了什么</h3>
+
+    <div class="cards">
+      <div class="card">
+        <div class="emoji">🔢</div>
+        <h4>自动求导</h4>
+        <p>Value 类 + backward 函数，链式法则传播梯度</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🗺️</div>
+        <h4>计算图</h4>
+        <p>拓扑排序确保反向传播顺序正确</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🤖</div>
+        <h4>Transformer</h4>
+        <p>嵌入+注意力+MLP+残差+归一化</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🧠</div>
+        <h4>注意力机制</h4>
+        <p>Q/K/V 点积，Softmax，多头并行</p>
+      </div>
+      <div class="card">
+        <div class="emoji">⚡</div>
+        <h4>Adam 优化</h4>
+        <p>动量 + 自适应步长，带偏差修正</p>
+      </div>
+      <div class="card">
+        <div class="emoji">✍️</div>
+        <h4>自回归生成</h4>
+        <p>Temperature 采样，逐字生成</p>
+      </div>
+    </div>
+
+    <div class="box tip" style="margin-top:32px;">
+      <span class="box-icon">🚀</span>
+      <div class="box-content">
+        <div class="box-title">恭喜！你已经理解了一个完整的 GPT！</div>
+        <p>ChatGPT、Claude、Gemini 等所有大语言模型，在核心原理上都和这 600 行代码完全一致——只是规模更大（更多层、更大的嵌入维度、更大的词表、数十亿参数）。你已经掌握了最重要的基础。</p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- 加载后续章节的脚本触发 -->
+  <div id="chapters-rest"></div>
+
+</main>
+
+<script>
+// 进度条
+window.addEventListener('scroll', function() {
+  var el = document.getElementById('progress');
+  var h = document.documentElement;
+  var st = window.scrollY;
+  var sh = h.scrollHeight - h.clientHeight;
+  el.style.transform = 'scaleX(' + (st / sh) + ')';
+});
+
+// 侧边栏高亮
+var sections = document.querySelectorAll('.chapter');
+var navLinks = document.querySelectorAll('#sidebar nav a');
+window.addEventListener('scroll', function() {
+  var scrollY = window.scrollY;
+  sections.forEach(function(sec) {
+    var top = sec.offsetTop - 60;
+    var bottom = top + sec.offsetHeight;
+    if (scrollY >= top && scrollY < bottom) {
+      navLinks.forEach(function(a) { a.classList.remove('active'); });
+      var id = sec.getAttribute('id');
+      var active = document.querySelector('#sidebar nav a[href="#' + id + '"]');
+      if (active) active.classList.add('active');
+    }
+  });
+});
+</script>
+
+</body>
+</html>
